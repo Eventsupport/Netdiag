@@ -16,7 +16,7 @@
 # Rör inte nätverk, brandvägg eller Tailscale.
 # =============================================================================
 set -euo pipefail
-NETMON_ID="${NETMON_ID:-$(pct list | awk 'NR>1 && $NF=="netmon" {print $1; exit}')}"
+NETMON_ID="${NETMON_ID:-$(pct list | awk 'NR>1 && $NF ~ /^netmon(-|$)/ {print $1; exit}')}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 [[ $EUID -eq 0 ]] || { echo "Kör som root." >&2; exit 1; }
 [[ -n "$NETMON_ID" ]] && pct status "$NETMON_ID" >/dev/null 2>&1 || { echo "Hittar ingen netmon-container (pct list)." >&2; exit 1; }

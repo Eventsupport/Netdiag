@@ -36,8 +36,9 @@ LAN_PREFIX="${LAN_PREFIX:-172.30}"
 LAN_IP="$LAN_PREFIX.$BOX_ID.1"; LAN_NET="$LAN_PREFIX.$BOX_ID.0/24"
 # Container-ID: 90 + boxnummer + sista oktetten i IP (netdiag3: 90320, 90310).
 # Unikt per box, så att backuper i en gemensam PBS inte krockar.
-# Finns redan en container som heter netmon används den.
-NETMON_ID="${NETMON_ID:-$(pct list | awk 'NR>1 && $NF=="netmon" {print $1; exit}')}"
+# Finns redan en container som heter netmon* används den.
+# Containern heter netmon-<värd> (t.ex. netmon-netdiag3) så att backuper i PBS blir tydliga.
+NETMON_ID="${NETMON_ID:-$(pct list | awk 'NR>1 && $NF ~ /^netmon(-|$)/ {print $1; exit}')}"
 NETMON_ID="${NETMON_ID:-90${BOX_ID}20}"; NETMON_IP="$LAN_PREFIX.$BOX_ID.20"
 KUMA_ID="${KUMA_ID:-90${BOX_ID}10}";    KUMA_IP="$LAN_PREFIX.$BOX_ID.10"
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -158,7 +159,7 @@ if ! pct status "$NETMON_ID" >/dev/null 2>&1; then
   [[ -n "$tmpl" ]] || { echo "Hittar ingen Debian 13-mall." >&2; exit 1; }
   pveam list local | grep -q "$tmpl" || pveam download local "$tmpl"
   pct create "$NETMON_ID" "local:vztmpl/$tmpl" \
-    --hostname netmon --cores 2 --memory 3072 --swap 512 \
+    --hostname "netmon-$(hostname -s)" --cores 2 --memory 3072 --swap 512 \
     --rootfs "$storage:32" --unprivileged 1 --features nesting=1 \
     --net0 "name=eth0,bridge=$LAN,ip=$NETMON_IP/24,gw=$LAN_IP" \
     --nameserver "1.1.1.1 9.9.9.9" --onboot 1

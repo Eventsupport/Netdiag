@@ -5,8 +5,8 @@
 #   netmon <kommando …>     kör kommandot i containern, t.ex. netmon netdiag-events
 #   netmon --id             skriv ut containerns ID
 set -euo pipefail
-id="${NETMON_ID:-$(pct list | awk 'NR>1 && $NF=="netmon" {print $1; exit}')}"
-[[ -n "$id" ]] || { echo "Hittar ingen container med namnet netmon (pct list)." >&2; exit 1; }
+id="${NETMON_ID:-$(pct list | awk 'NR>1 && $NF ~ /^netmon(-|$)/ {print $1; exit}')}"
+[[ -n "$id" ]] || { echo "Hittar ingen container med namnet netmon (pct list, namn netmon*)." >&2; exit 1; }
 case "${1:-}" in
   "")   exec pct enter "$id" ;;
   --id) echo "$id" ;;

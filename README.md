@@ -66,7 +66,7 @@ Allt startar automatiskt vid omstart: brandvägg, Tailscale, netmon-containern o
 
 ### Container-ID och kommandot `netmon`
 
-Container-ID följer boxnumret: `90` + N + sista siffrorna i IP-adressen. Det ger unika ID:n när flera boxar säkerhetskopieras till samma PBS.
+Container-ID följer boxnumret: `90` + N + sista siffrorna i IP-adressen. Containern heter `netmon-netdiagN`. Det ger unika ID:n och tydliga namn när flera boxar säkerhetskopieras till samma PBS.
 
 | Container | netdiag3 | netdiag4 |
 |---|---|---|
