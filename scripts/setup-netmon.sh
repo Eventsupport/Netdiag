@@ -113,7 +113,7 @@ Wants=network-online.target
 
 [Service]
 WorkingDirectory=/etc/network_exporter
-ExecStart=/usr/local/bin/network_exporter --config.file=/etc/network_exporter/network_exporter.yml --ipv6=false
+ExecStart=/usr/local/bin/network_exporter --config.file=/etc/network_exporter/network_exporter.yml --no-ipv6
 Restart=always
 RestartSec=5
 
