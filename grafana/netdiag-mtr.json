@@ -94,7 +94,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "max by (ttl, path) (avg_over_time(mtr_rtt_seconds{target=\"$target\",type=\"loss\"}[$__range])) * 100",
+          "expr": "max by (ttl, path) (avg_over_time(mtr_rtt_seconds{target=~\"$target\",type=\"loss\"}[$__range])) * 100",
           "refId": "A",
           "format": "table",
           "instant": true,
@@ -105,7 +105,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "max by (ttl, path) (max_over_time(mtr_rtt_seconds{target=\"$target\",type=\"loss\"}[$__range])) * 100",
+          "expr": "max by (ttl, path) (max_over_time(mtr_rtt_seconds{target=~\"$target\",type=\"loss\"}[$__range])) * 100",
           "refId": "D",
           "format": "table",
           "instant": true,
@@ -116,7 +116,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "max by (ttl, path) (avg_over_time(mtr_rtt_seconds{target=\"$target\",type=\"mean\"}[$__range])) * 1000",
+          "expr": "max by (ttl, path) (avg_over_time(mtr_rtt_seconds{target=~\"$target\",type=\"mean\"}[$__range])) * 1000",
           "refId": "B",
           "format": "table",
           "instant": true,
@@ -127,7 +127,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "max by (ttl, path) (max_over_time(mtr_rtt_seconds{target=\"$target\",type=\"worst\"}[$__range])) * 1000",
+          "expr": "max by (ttl, path) (max_over_time(mtr_rtt_seconds{target=~\"$target\",type=\"worst\"}[$__range])) * 1000",
           "refId": "C",
           "format": "table",
           "instant": true,
@@ -325,7 +325,7 @@
     },
     {
       "type": "timeseries",
-      "title": "Slutmål $target – latens och förlust",
+      "title": "Slutmål $target – latens och förlust (ping)",
       "id": 4,
       "datasource": {
         "type": "prometheus",
@@ -343,30 +343,30 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "mtr_rtt_seconds{target=\"$target\",path=\"$target\",type=\"mean\"} * 1000",
           "refId": "A",
           "format": "time_series",
-          "legendFormat": "Snitt ms"
+          "expr": "ping_rtt_seconds{target=~\"$target\",type=\"mean\"} * 1000",
+          "legendFormat": "Snitt ms {{target_ip}}"
         },
         {
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "mtr_rtt_seconds{target=\"$target\",path=\"$target\",type=\"worst\"} * 1000",
           "refId": "B",
           "format": "time_series",
-          "legendFormat": "Värsta ms"
+          "expr": "ping_rtt_seconds{target=~\"$target\",type=\"worst\"} * 1000",
+          "legendFormat": "Värsta ms {{target_ip}}"
         },
         {
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "mtr_rtt_seconds{target=\"$target\",path=\"$target\",type=\"loss\"} * 100",
           "refId": "C",
           "format": "time_series",
-          "legendFormat": "Förlust %"
+          "expr": "ping_loss_percent{target=~\"$target\"} * 100",
+          "legendFormat": "Förlust % {{target_ip}}"
         }
       ],
       "fieldConfig": {
@@ -381,8 +381,8 @@
         "overrides": [
           {
             "matcher": {
-              "id": "byName",
-              "options": "Förlust %"
+              "id": "byRegexp",
+              "options": "^Förlust.*"
             },
             "properties": [
               {
@@ -420,8 +420,8 @@
           },
           {
             "matcher": {
-              "id": "byName",
-              "options": "Värsta ms"
+              "id": "byRegexp",
+              "options": "^Värsta.*"
             },
             "properties": [
               {
@@ -468,7 +468,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "mtr_rtt_seconds{target=\"$target\",type=\"mean\"} * 1000",
+          "expr": "mtr_rtt_seconds{target=~\"$target\",type=\"mean\"} * 1000",
           "refId": "A",
           "format": "time_series",
           "legendFormat": "{{ttl}}: {{path}}"
@@ -521,7 +521,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "mtr_rtt_seconds{target=\"$target\",type=\"loss\"} * 100",
+          "expr": "mtr_rtt_seconds{target=~\"$target\",type=\"loss\"} * 100",
           "refId": "A",
           "format": "time_series",
           "legendFormat": "{{ttl}}: {{path}}"
@@ -574,7 +574,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "mtr_hops{target=\"$target\"}",
+          "expr": "mtr_hops{target=~\"$target\"}",
           "refId": "A",
           "format": "time_series",
           "legendFormat": "Hopp"
