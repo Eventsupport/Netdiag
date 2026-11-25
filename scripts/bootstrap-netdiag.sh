@@ -10,11 +10,14 @@
 #                              (kör om utan ADMIN_NET innan boxen åker till kund)
 #   KUMA_BACKUP=/root/vzdump-lxc-XXX.tar.zst   återställ Uptime Kuma
 #   EXTRA_TARGETS="192.168.1.1"                extra mätmål till netmon
+#   WAN_DHCP=0                 behåll statisk IP på vmbr0 (standard: DHCP)
 #
 # Steg: repos -> uppdatering -> vmbr1 -> Tailscale -> LXC:er -> brandvägg
+#       -> vmbr0 till DHCP (gäller från nästa omstart)
 # =============================================================================
 set -euo pipefail
 
+WAN_DHCP="${WAN_DHCP:-1}"
 SITE_NAME="${SITE_NAME:-$(hostname -s)}"
 ADMIN_NET="${ADMIN_NET:-}"
 KUMA_BACKUP="${KUMA_BACKUP:-}"
@@ -193,6 +196,31 @@ else
   exit 1
 fi
 
+# -----------------------------------------------------------------------------
+dhcp_pending=0
+if [[ "$WAN_DHCP" == "1" ]]; then
+  step "$WAN till DHCP"
+  # Värdnamnet pekar på den interna adressen, som aldrig ändras.
+  fqdn="$(hostname -f)"; short="$(hostname -s)"
+  sed -i -E "/[[:space:]]${short}([[:space:]]|$)/d" /etc/hosts
+  echo "$LAN_IP $fqdn $short" >> /etc/hosts
+
+  if grep -qE "^iface $WAN inet dhcp" /etc/network/interfaces; then
+    echo "$WAN använder redan DHCP."
+  else
+    cp /etc/network/interfaces "/etc/network/interfaces.bak.$(date +%Y%m%d-%H%M%S)"
+    awk -v ifc="$WAN" '
+      $1=="iface" && $2==ifc && $3=="inet" { print "iface " ifc " inet dhcp"; blk=1; next }
+      blk && ($1=="address" || $1=="gateway" || $1=="netmask") { next }
+      /^(auto|iface|allow-|source)/ { blk=0 }
+      { print }' /etc/network/interfaces > /etc/network/interfaces.new
+    mv /etc/network/interfaces.new /etc/network/interfaces
+    dhcp_pending=1
+    echo "Klart. $WAN tar IP via DHCP från nästa omstart (eller ifreload -a)."
+    echo "Den nuvarande IP-adressen slutar då gälla – anslut via Tailscale efteråt."
+  fi
+fi
+
 cat <<EOF
 
 =============================================================
@@ -201,6 +229,7 @@ cat <<EOF
  Grafana:   http://$NETMON_IP:3000   (via Tailscale subnet route)
 $( [[ -n "$KUMA_BACKUP" ]] && echo " Kuma:      http://$KUMA_IP:3001" )
 $( [[ -n "$ADMIN_NET" ]] && echo " OBS: ADMIN_NET är öppet – kör om utan ADMIN_NET före leverans." )
+$( [[ "$dhcp_pending" == "1" ]] && echo " OBS: Starta om (reboot) för att $WAN ska gå över till DHCP." )
  Testa utifrån:  nmap -Pn <publik-ip>   (allt ska vara filtered)
 =============================================================
 EOF

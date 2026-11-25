@@ -39,7 +39,7 @@ Nätverksdiagnostik hos kund: en liten Proxmox-box som sitter direkt på kundens
 2. **Hämta repot** till värden:
    ```
    apt-get install -y git
-   git clone https://github.com/Eventsupport/netdiag.git /root/netdiag
+   git clone https://github.com/Eventsupport/Netdiag.git /root/netdiag
    ```
    Repot är privat, så git frågar efter användarnamn och token. Använd en fine-grained token med läsrättighet till just detta repo.
 3. **Kör bootstrap**:
@@ -50,10 +50,14 @@ Nätverksdiagnostik hos kund: en liten Proxmox-box som sitter direkt på kundens
    - Logga in i Tailscale via länken som skriptet visar.
    - När brandväggen slås på: öppna en ny anslutning och skriv `JA` inom 2 minuter. Annars tas reglerna bort automatiskt.
 4. **Godkänn subnet-routen** `10.10.10.0/24` för boxen i Tailscale-konsolen.
-5. **Före leverans till kund:**
+5. **Starta om** (`reboot`). Bootstrap har ställt om `vmbr0` till DHCP, och det gäller från omstarten. Därefter når du boxen via Tailscale.
+6. **Före leverans till kund:**
    - Kör `bash bootstrap-netdiag.sh` igen **utan** `ADMIN_NET`. Det stänger admin-åtkomsten från ditt lokala nät.
-   - Sätt `vmbr0` till `inet dhcp` i `/etc/network/interfaces`.
    - Testa från ett annat nät: `nmap -Pn <publik-ip>`. Allt ska visas som filtered.
+
+### Nätverk: alltid DHCP
+
+Boxen tar alltid IP via DHCP på `vmbr0`, både direkt mot internet och på kundens LAN. Du behöver inte göra någon inställning på plats. Värdnamnet pekar på den interna adressen `10.10.10.1` i `/etc/hosts`, så Proxmox påverkas inte när IP-adressen ändras. Brandväggen fungerar likadant i båda fallen: inget inkommande släpps in från `vmbr0`, varken från internet eller från kundens nät.
 
 ### Variabler till bootstrap-netdiag.sh
 
@@ -63,6 +67,7 @@ Nätverksdiagnostik hos kund: en liten Proxmox-box som sitter direkt på kundens
 | `ADMIN_NET` | – | Tillfälligt tillåtet admin-nät under uppsättning |
 | `KUMA_BACKUP` | – | vzdump-fil med Uptime Kuma som ska återställas |
 | `EXTRA_TARGETS` | – | Extra mätmål, t.ex. kundens router eller operatörens första hopp |
+| `WAN_DHCP` | `1` | `0` = behåll statisk IP på vmbr0 |
 
 Skriptet kan köras flera gånger. Steg som redan är gjorda hoppas över.
 
