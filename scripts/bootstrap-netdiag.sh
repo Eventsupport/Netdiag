@@ -178,7 +178,7 @@ install -m 0755 "$HERE/netdiag-export.sh" /usr/local/bin/netdiag-export
 install -m 0755 "$HERE/netmon.sh" /usr/local/bin/netmon
 TZ_NAME="$(timedatectl show -p Timezone --value 2>/dev/null || echo Europe/Stockholm)"
 tgt_env=(); [[ -n "${TARGETS:-}" ]] && tgt_env=(TARGETS="$TARGETS")
-pct exec "$NETMON_ID" -- env NETMON_ID="$NETMON_ID" TZ_NAME="$TZ_NAME" SITE_NAME="$SITE_NAME" "${tgt_env[@]}" EXTRA_TARGETS="$EXTRA_TARGETS" \
+pct exec "$NETMON_ID" -- env LANG=C.UTF-8 LC_ALL=C.UTF-8 NETMON_ID="$NETMON_ID" TZ_NAME="$TZ_NAME" SITE_NAME="$SITE_NAME" "${tgt_env[@]}" EXTRA_TARGETS="$EXTRA_TARGETS" \
   bash /root/setup-netmon.sh
 
 # -----------------------------------------------------------------------------

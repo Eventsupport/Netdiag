@@ -390,6 +390,30 @@ WantedBy=multi-user.target
 EOF
 fi
 
+# --- Radera all mätdata (ny kund) ---------------------------------------------
+cat > /usr/local/bin/netdiag-reset <<'EOF'
+#!/usr/bin/env bash
+# Raderar ALL mätdata: Prometheus-historik, pinglogg, avbrottslogg,
+# MTR-rapporter och felanmälningspaket. Inställningar och mål behålls.
+# Anropas av new-site.sh på värden.
+set -euo pipefail
+. /etc/netdiag.conf
+echo "==> Stoppar mätningar"
+systemctl stop netdiag-ping.timer netdiag-mtr.timer prometheus
+systemctl stop 'netdiag-pingwatch@*' 2>/dev/null || true
+echo "==> Raderar data"
+for d in /var/lib/prometheus/metrics2 /var/lib/prometheus/data; do
+  [[ -d "$d" ]] && find "$d" -mindepth 1 -delete
+done
+rm -f "$DATA/ping.csv" "$DATA/events.log"
+find "$DATA/reports" "$DATA/export" -mindepth 1 -delete 2>/dev/null || true
+echo "==> Startar mätningar"
+systemctl start prometheus netdiag-ping.timer netdiag-mtr.timer
+systemctl restart netdiag-web network_exporter
+for t in $TARGETS; do systemctl start "netdiag-pingwatch@$t.service"; done
+echo "All mätdata raderad. Mätningen har börjat om från noll."
+EOF
+
 # --- Visa avbrottsloggen ------------------------------------------------------
 cat > /usr/local/bin/netdiag-events <<'EOF'
 #!/usr/bin/env bash

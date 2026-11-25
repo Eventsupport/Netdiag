@@ -50,5 +50,5 @@ install -m 0755 "$HERE/netmon.sh" /usr/local/bin/netmon
 TZ_NAME="$(timedatectl show -p Timezone --value 2>/dev/null || echo Europe/Stockholm)"
 
 echo "==> Kör setup-netmon.sh"
-pct exec "$NETMON_ID" -- env NETMON_ID="$NETMON_ID" TZ_NAME="$TZ_NAME" SITE_NAME="$site" TARGETS="$targets" EXTRA_TARGETS="" \
+pct exec "$NETMON_ID" -- env LANG=C.UTF-8 LC_ALL=C.UTF-8 NETMON_ID="$NETMON_ID" TZ_NAME="$TZ_NAME" SITE_NAME="$site" TARGETS="$targets" EXTRA_TARGETS="" \
   bash /root/setup-netmon.sh

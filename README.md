@@ -177,6 +177,23 @@ Kör en MTR manuellt: `netmon netdiag-mtr manual 8.8.8.8`
 cd /root/netdiag && git pull && bash scripts/update-netmon.sh
 ```
 
+### Flytta boxen till en ny kund
+
+Sätter platsnamn och mål och **raderar all gammal mätdata**: grafer, pinglogg, avbrottslogg, MTR-rapporter och felanmälningspaket. Du får skriva `RADERA` för att bekräfta.
+
+Spara först det du vill behålla från förra kunden:
+
+```
+netdiag-export "2026-11-20 00:00" "2026-11-26 23:59"
+```
+
+Sedan på plats hos den nya kunden:
+
+```
+cd /root/netdiag && git pull
+SITE_NAME="Kund AB Ort" TARGETS="<kundens router> <första hopp> 1.1.1.1 8.8.8.8 9.9.9.9 ping.sunet.se teliaplay.se" bash scripts/new-site.sh
+```
+
 ### Byta mätmål
 
 Listan ersätts helt med de mål du anger. Både IP-adresser och värdnamn fungerar.
@@ -210,6 +227,7 @@ Grafana: mappen **netdiag** → **netdiag – MTR per hopp**. Där finns en sekt
 | `scripts/netmon.sh` | Proxmox-värden (som `netmon`) | Kör kommandon i netmon-containern utan ID |
 | `scripts/netdiag-export.sh` | Proxmox-värden (som `netdiag-export`) | Skapar felanmälningspaket och lägger det i /root |
 | `scripts/netdiag-web.py` | I netmon-LXC:n (port 8080) | Webbsida för felanmälningspaket och avbrottslogg |
+| `scripts/new-site.sh` | Proxmox-värden | Ny kund: platsnamn, mål och radering av gammal mätdata |
 | `scripts/update-netmon.sh` | Proxmox-värden | Uppdaterar en befintlig box efter `git pull` (behåller mätmål) |
 | `grafana/*.json` | – | Dashboards som installeras automatiskt i Grafana |
 
