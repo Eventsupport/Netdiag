@@ -13,8 +13,8 @@ Nätverksdiagnostik hos kund: en liten Proxmox-box som sitter direkt på kundens
    │   Tailscale: admin + subnet route            │
    │                                              │
    │   vmbr1 172.30.N.1/24 (internt, NAT)         │
-   │     ├─ CT 110  uptime-kuma  172.30.N.10:3001 │
-   │     └─ CT 120  netmon       172.30.N.20      │
+   │     ├─ CT 90N10 uptime-kuma 172.30.N.10:3001 │
+   │     └─ CT 90N20 netmon      172.30.N.20      │
    │          network_exporter  :9427  (ICMP/MTR) │
    │          Prometheus        :9090  (90 dagar) │
    │          Grafana           :3000             │
@@ -53,8 +53,8 @@ Nätverksdiagnostik hos kund: en liten Proxmox-box som sitter direkt på kundens
 5. **Grafana:** öppna `http://172.30.N.20:3000` och logga in med admin/admin. Byt lösenord när du blir ombedd.
 6. **Starta om** (`reboot`). `vmbr0` går då över till DHCP och kan få en ny adress. Anslut därefter via Tailscale (`ssh root@netdiagN`). Kontrollera:
    ```
-   pct status 120                          # running
-   pct exec 120 -- systemctl --failed      # 0 loaded units listed
+   pct list                                # netmon: running
+   netmon systemctl --failed      # 0 loaded units listed
    ```
 7. **Före leverans till kund:** ta bort admin-undantaget för ditt lokala nät. Efter det fungerar bara Tailscale.
    ```
@@ -63,6 +63,23 @@ Nätverksdiagnostik hos kund: en liten Proxmox-box som sitter direkt på kundens
    Testa från ett annat nät: `nmap -Pn <publik-ip>`. Alla portar ska visas som filtered.
 
 Allt startar automatiskt vid omstart: brandvägg, Tailscale, netmon-containern och alla tjänster i den.
+
+### Container-ID och kommandot `netmon`
+
+Container-ID följer boxnumret: `90` + N + sista siffrorna i IP-adressen. Det ger unika ID:n när flera boxar säkerhetskopieras till samma PBS.
+
+| Container | netdiag3 | netdiag4 |
+|---|---|---|
+| netmon (172.30.N.20) | 90320 | 90420 |
+| Uptime Kuma (172.30.N.10) | 90310 | 90410 |
+
+På värden finns kommandot `netmon`, som hittar containern själv:
+
+```
+netmon                     # skal i containern
+netmon netdiag-events      # kör ett kommando i containern
+netmon --id                # visa containerns ID
+```
 
 ### Standardmål
 
@@ -116,9 +133,9 @@ Boxen sparar automatiskt:
 Visa avbrottsloggen:
 
 ```
-pct exec 120 -- netdiag-events                 # alla avbrott
-pct exec 120 -- netdiag-events ping.sunet.se   # ett mål
-pct exec 120 -- netdiag-events -f              # följ live
+netmon netdiag-events                 # alla avbrott
+netmon netdiag-events ping.sunet.se   # ett mål
+netmon netdiag-events -f              # följ live
 ```
 
 Exempel:
@@ -150,7 +167,7 @@ Zip-filen innehåller:
 
 Bifoga den direkt i felanmälan.
 
-Kör en MTR manuellt: `pct exec 120 -- netdiag-mtr manual 8.8.8.8`
+Kör en MTR manuellt: `netmon netdiag-mtr manual 8.8.8.8`
 
 **Tolkning:** Förlust på ett hopp i mitten som *inte* fortsätter till senare hopp beror nästan alltid på att routern begränsar ICMP-svar. Det är inget fel. Förlust som börjar på ett visst hopp och fortsätter hela vägen till målet visar var problemet ligger.
 
@@ -190,6 +207,7 @@ Grafana: mappen **netdiag** → **netdiag – MTR per hopp**. Där finns en sekt
 |---|---|---|
 | `scripts/bootstrap-netdiag.sh` | Proxmox-värden | Repos, uppdatering, vmbr1/NAT, Tailscale, LXC:er, brandvägg |
 | `scripts/setup-netmon.sh` | I netmon-LXC:n (anropas av bootstrap) | network_exporter, Prometheus, Grafana, netdiag-skript |
+| `scripts/netmon.sh` | Proxmox-värden (som `netmon`) | Kör kommandon i netmon-containern utan ID |
 | `scripts/netdiag-export.sh` | Proxmox-värden (som `netdiag-export`) | Skapar felanmälningspaket och lägger det i /root |
 | `scripts/netdiag-web.py` | I netmon-LXC:n (port 8080) | Webbsida för felanmälningspaket och avbrottslogg |
 | `scripts/update-netmon.sh` | Proxmox-värden | Uppdaterar en befintlig box efter `git pull` (behåller mätmål) |

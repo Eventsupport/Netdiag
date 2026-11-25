@@ -181,7 +181,8 @@ if compgen -G "/root/netdiag-dashboards/*.json" >/dev/null; then
   # @NETMON_HOST@ i länkarna ersätts med containerns adress
   host_ip="$(hostname -I | awk '{print $1}')"
   for d in /root/netdiag-dashboards/*.json; do
-    sed "s/@NETMON_HOST@/${host_ip}/g" "$d" > "/var/lib/grafana/dashboards/$(basename "$d")"
+    sed -e "s/@NETMON_HOST@/${host_ip}/g" -e "s/@NETMON_ID@/${NETMON_ID:-?}/g" "$d" \
+      > "/var/lib/grafana/dashboards/$(basename "$d")"
   done
 fi
 chown -R grafana:grafana /var/lib/grafana/dashboards 2>/dev/null || true

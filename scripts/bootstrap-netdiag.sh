@@ -14,6 +14,7 @@
 #   WAN_DHCP=0                 behåll statisk IP på vmbr0 (standard: DHCP)
 #   BOX_ID=3                   boxnummer (standard: siffran i värdnamnet)
 #   LAN_PREFIX=172.30          internt nät blir LAN_PREFIX.BOX_ID.0/24
+#   NETMON_ID / KUMA_ID        container-ID (standard 90<N>20 / 90<N>10)
 #
 # Steg: repos -> uppdatering -> vmbr1 -> Tailscale -> LXC:er -> brandvägg
 #       -> vmbr0 till DHCP (gäller från nästa omstart)
@@ -33,8 +34,12 @@ LAN_PREFIX="${LAN_PREFIX:-172.30}"
 [[ "$BOX_ID" =~ ^[0-9]+$ ]] && (( BOX_ID >= 1 && BOX_ID <= 254 )) || {
   echo "Kan inte avgöra boxnummer från värdnamnet. Ange BOX_ID=N (1–254)." >&2; exit 1; }
 LAN_IP="$LAN_PREFIX.$BOX_ID.1"; LAN_NET="$LAN_PREFIX.$BOX_ID.0/24"
-NETMON_ID=120; NETMON_IP="$LAN_PREFIX.$BOX_ID.20"
-KUMA_ID=110;   KUMA_IP="$LAN_PREFIX.$BOX_ID.10"
+# Container-ID: 90 + boxnummer + sista oktetten i IP (netdiag3: 90320, 90310).
+# Unikt per box, så att backuper i en gemensam PBS inte krockar.
+# Finns redan en container som heter netmon används den.
+NETMON_ID="${NETMON_ID:-$(pct list | awk 'NR>1 && $NF=="netmon" {print $1; exit}')}"
+NETMON_ID="${NETMON_ID:-90${BOX_ID}20}"; NETMON_IP="$LAN_PREFIX.$BOX_ID.20"
+KUMA_ID="${KUMA_ID:-90${BOX_ID}10}";    KUMA_IP="$LAN_PREFIX.$BOX_ID.10"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 
 [[ $EUID -eq 0 ]] || { echo "Kör som root." >&2; exit 1; }
@@ -169,9 +174,10 @@ for d in "$HERE"/../grafana/*.json; do
 done
 pct push "$NETMON_ID" "$HERE/netdiag-web.py" /root/netdiag-web.py
 install -m 0755 "$HERE/netdiag-export.sh" /usr/local/bin/netdiag-export
+install -m 0755 "$HERE/netmon.sh" /usr/local/bin/netmon
 TZ_NAME="$(timedatectl show -p Timezone --value 2>/dev/null || echo Europe/Stockholm)"
 tgt_env=(); [[ -n "${TARGETS:-}" ]] && tgt_env=(TARGETS="$TARGETS")
-pct exec "$NETMON_ID" -- env TZ_NAME="$TZ_NAME" SITE_NAME="$SITE_NAME" "${tgt_env[@]}" EXTRA_TARGETS="$EXTRA_TARGETS" \
+pct exec "$NETMON_ID" -- env NETMON_ID="$NETMON_ID" TZ_NAME="$TZ_NAME" SITE_NAME="$SITE_NAME" "${tgt_env[@]}" EXTRA_TARGETS="$EXTRA_TARGETS" \
   bash /root/setup-netmon.sh
 
 # -----------------------------------------------------------------------------

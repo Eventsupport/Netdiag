@@ -16,10 +16,10 @@
 # Rör inte nätverk, brandvägg eller Tailscale.
 # =============================================================================
 set -euo pipefail
-NETMON_ID="${NETMON_ID:-120}"
+NETMON_ID="${NETMON_ID:-$(pct list | awk 'NR>1 && $NF=="netmon" {print $1; exit}')}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 [[ $EUID -eq 0 ]] || { echo "Kör som root." >&2; exit 1; }
-pct status "$NETMON_ID" >/dev/null 2>&1 || { echo "CT $NETMON_ID finns inte." >&2; exit 1; }
+[[ -n "$NETMON_ID" ]] && pct status "$NETMON_ID" >/dev/null 2>&1 || { echo "Hittar ingen netmon-container (pct list)." >&2; exit 1; }
 
 echo "==> sysctl på värden"
 f=/etc/sysctl.d/99-netdiag.conf
@@ -46,8 +46,9 @@ for d in "$HERE"/../grafana/*.json; do
 done
 pct push "$NETMON_ID" "$HERE/netdiag-web.py" /root/netdiag-web.py
 install -m 0755 "$HERE/netdiag-export.sh" /usr/local/bin/netdiag-export
+install -m 0755 "$HERE/netmon.sh" /usr/local/bin/netmon
 TZ_NAME="$(timedatectl show -p Timezone --value 2>/dev/null || echo Europe/Stockholm)"
 
 echo "==> Kör setup-netmon.sh"
-pct exec "$NETMON_ID" -- env TZ_NAME="$TZ_NAME" SITE_NAME="$site" TARGETS="$targets" EXTRA_TARGETS="" \
+pct exec "$NETMON_ID" -- env NETMON_ID="$NETMON_ID" TZ_NAME="$TZ_NAME" SITE_NAME="$site" TARGETS="$targets" EXTRA_TARGETS="" \
   bash /root/setup-netmon.sh
