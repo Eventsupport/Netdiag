@@ -38,7 +38,10 @@ Nätverksdiagnostik hos kund: en liten Proxmox-box som sitter direkt på kundens
    - Ge boxen en tillfällig statisk IP på ditt eget nät.
 2. **Hämta repot** till värden:
    ```
-   apt-get install -y git
+   # Enterprise-källorna kräver licens och stoppar apt – stäng av dem först
+   cd /etc/apt/sources.list.d
+   for f in pve-enterprise.sources ceph.sources; do [ -f "$f" ] && mv "$f" "$f.disabled"; done
+   apt-get update && apt-get install -y git tmux
    git clone https://github.com/Eventsupport/Netdiag.git /root/netdiag
    ```
    Repot är privat, så git frågar efter användarnamn och token. Använd en fine-grained token med läsrättighet till just detta repo.

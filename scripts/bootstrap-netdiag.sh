@@ -57,9 +57,21 @@ echo "Box $BOX_ID – internt nät $LAN_NET"
 # -----------------------------------------------------------------------------
 step "Paketkällor: no-subscription"
 codename="$(. /etc/os-release && echo "$VERSION_CODENAME")"
-for f in /etc/apt/sources.list.d/pve-enterprise.sources /etc/apt/sources.list.d/ceph.sources; do
-  [[ -f "$f" ]] && ! grep -q '^Enabled: no' "$f" && echo "Enabled: no" >> "$f"
+# Enterprise-källorna kräver licens och får apt-get update att fallera.
+for f in $(grep -l 'enterprise.proxmox.com' /etc/apt/sources.list.d/*.sources /etc/apt/sources.list.d/*.list 2>/dev/null); do
+  mv "$f" "$f.disabled"; echo "Avaktiverade $(basename "$f")"
 done
+# Ceph behövs inte, men lägg no-subscription-källan om ceph.sources fanns.
+if [[ -f /etc/apt/sources.list.d/ceph.sources.disabled ]] && [[ ! -f /etc/apt/sources.list.d/ceph.sources ]]; then
+  suite="$(awk '/^URIs:/{print $2}' /etc/apt/sources.list.d/ceph.sources.disabled | grep -oE 'ceph-[a-z]+' | head -n1)"
+  [[ -n "$suite" ]] && cat > /etc/apt/sources.list.d/ceph.sources <<EOF
+Types: deb
+URIs: http://download.proxmox.com/debian/${suite}
+Suites: $(. /etc/os-release && echo "$VERSION_CODENAME")
+Components: no-subscription
+Signed-By: /usr/share/keyrings/proxmox-archive-keyring.gpg
+EOF
+fi
 cat > /etc/apt/sources.list.d/proxmox.sources <<EOF
 Types: deb
 URIs: http://download.proxmox.com/debian/pve
