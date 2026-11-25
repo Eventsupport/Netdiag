@@ -24,10 +24,10 @@
           "uid": "prometheus"
         },
         "query": {
-          "query": "label_values(mtr_hops, target)",
+          "query": "label_values(mtr_hops, name)",
           "refId": "v"
         },
-        "definition": "label_values(mtr_hops, target)",
+        "definition": "label_values(mtr_hops, name)",
         "multi": true,
         "includeAll": true,
         "current": {
@@ -40,7 +40,8 @@
           ]
         },
         "refresh": 2,
-        "sort": 1
+        "sort": 1,
+        "regex": "/^(.*)-mtr$/"
       }
     ]
   },
@@ -94,7 +95,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "max by (ttl, path) (avg_over_time(mtr_rtt_seconds{target=~\"$target\",type=\"loss\"}[$__range])) * 100",
+          "expr": "max by (ttl, path) (avg_over_time(mtr_rtt_seconds{name=~\"$target-mtr\",type=\"loss\"}[$__range])) * 100",
           "refId": "A",
           "format": "table",
           "instant": true,
@@ -105,7 +106,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "max by (ttl, path) (max_over_time(mtr_rtt_seconds{target=~\"$target\",type=\"loss\"}[$__range])) * 100",
+          "expr": "max by (ttl, path) (max_over_time(mtr_rtt_seconds{name=~\"$target-mtr\",type=\"loss\"}[$__range])) * 100",
           "refId": "D",
           "format": "table",
           "instant": true,
@@ -116,7 +117,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "max by (ttl, path) (avg_over_time(mtr_rtt_seconds{target=~\"$target\",type=\"mean\"}[$__range])) * 1000",
+          "expr": "max by (ttl, path) (avg_over_time(mtr_rtt_seconds{name=~\"$target-mtr\",type=\"mean\"}[$__range])) * 1000",
           "refId": "B",
           "format": "table",
           "instant": true,
@@ -127,7 +128,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "max by (ttl, path) (max_over_time(mtr_rtt_seconds{target=~\"$target\",type=\"worst\"}[$__range])) * 1000",
+          "expr": "max by (ttl, path) (max_over_time(mtr_rtt_seconds{name=~\"$target-mtr\",type=\"worst\"}[$__range])) * 1000",
           "refId": "C",
           "format": "table",
           "instant": true,
@@ -345,8 +346,8 @@
           },
           "refId": "A",
           "format": "time_series",
-          "expr": "ping_rtt_seconds{target=~\"$target\",type=\"mean\"} * 1000",
-          "legendFormat": "Snitt ms {{target_ip}}"
+          "expr": "ping_rtt_seconds{name=~\"$target-icmp\",type=\"mean\"} * 1000",
+          "legendFormat": "Snitt ms ({{target_ip}})"
         },
         {
           "datasource": {
@@ -355,8 +356,8 @@
           },
           "refId": "B",
           "format": "time_series",
-          "expr": "ping_rtt_seconds{target=~\"$target\",type=\"worst\"} * 1000",
-          "legendFormat": "Värsta ms {{target_ip}}"
+          "expr": "ping_rtt_seconds{name=~\"$target-icmp\",type=\"worst\"} * 1000",
+          "legendFormat": "Värsta ms ({{target_ip}})"
         },
         {
           "datasource": {
@@ -365,8 +366,8 @@
           },
           "refId": "C",
           "format": "time_series",
-          "expr": "ping_loss_percent{target=~\"$target\"} * 100",
-          "legendFormat": "Förlust % {{target_ip}}"
+          "expr": "ping_loss_percent{name=~\"$target-icmp\"} * 100",
+          "legendFormat": "Förlust % ({{target_ip}})"
         }
       ],
       "fieldConfig": {
@@ -468,7 +469,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "mtr_rtt_seconds{target=~\"$target\",type=\"mean\"} * 1000",
+          "expr": "mtr_rtt_seconds{name=~\"$target-mtr\",type=\"mean\"} * 1000",
           "refId": "A",
           "format": "time_series",
           "legendFormat": "{{ttl}}: {{path}}"
@@ -521,7 +522,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "mtr_rtt_seconds{target=~\"$target\",type=\"loss\"} * 100",
+          "expr": "mtr_rtt_seconds{name=~\"$target-mtr\",type=\"loss\"} * 100",
           "refId": "A",
           "format": "time_series",
           "legendFormat": "{{ttl}}: {{path}}"
@@ -574,7 +575,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "mtr_hops{target=~\"$target\"}",
+          "expr": "mtr_hops{name=~\"$target-mtr\"}",
           "refId": "A",
           "format": "time_series",
           "legendFormat": "Hopp"
