@@ -15,7 +15,7 @@
 set -euo pipefail
 
 SITE_NAME="${SITE_NAME:-netdiag2}"
-TARGETS="${TARGETS:-1.1.1.1 8.8.8.8 9.9.9.9}"
+TARGETS="${TARGETS:-1.1.1.1 8.8.8.8 9.9.9.9 ping.sunet.se teliaplay.se}"
 EXTRA_TARGETS="${EXTRA_TARGETS:-}"      # t.ex. kundens router och Telias första hopp
 RETENTION_DAYS="${RETENTION_DAYS:-90}"
 LOSS_THRESHOLD="${LOSS_THRESHOLD:-5}"   # % förlust som utlöser en incident-MTR

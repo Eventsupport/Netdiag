@@ -29,7 +29,7 @@ Nätverksdiagnostik hos kund: en liten Proxmox-box som sitter direkt på kundens
 ## Ny box från början
 
 1. **Installera Proxmox VE 9** från ISO.
-   - Hostname: `netdiagN.example.com`, där N är boxens nummer.
+   - Hostname: `netdiagN.example.com`, där N är boxens nummer. Numret bestämmer det interna nätet.
    - Ge boxen en tillfällig statisk IP på ditt eget nät.
 2. **Hämta repot** till värden:
    ```
@@ -39,18 +39,34 @@ Nätverksdiagnostik hos kund: en liten Proxmox-box som sitter direkt på kundens
    apt-get update && apt-get install -y git tmux
    git clone https://github.com/Eventsupport/Netdiag.git /root/netdiag
    ```
-3. **Kör bootstrap**:
+3. **Kör bootstrap i tmux**, så att den överlever om SSH tappar anslutningen. Återanslut med `tmux attach -t setup`.
    ```
+   tmux new -s setup
    cd /root/netdiag/scripts
-   ADMIN_NET=192.168.1.0/24 SITE_NAME="netdiag3" bash bootstrap-netdiag.sh
+   ADMIN_NET=10.10.10.0/23 bash bootstrap-netdiag.sh 2>&1 | tee /root/bootstrap.log
    ```
-   - Logga in i Tailscale via länken som skriptet visar.
-   - När brandväggen slås på: öppna en ny anslutning och skriv `JA` inom 2 minuter. Annars tas reglerna bort automatiskt.
-4. **Godkänn subnet-routen** `172.30.N.0/24` för boxen i Tailscale-konsolen.
-5. **Starta om** (`reboot`). Bootstrap har ställt om `vmbr0` till DHCP, och det gäller från omstarten. Därefter når du boxen via Tailscale.
-6. **Före leverans till kund:**
-   - Kör `bash bootstrap-netdiag.sh` igen **utan** `ADMIN_NET`. Det stänger admin-åtkomsten från ditt lokala nät.
-   - Testa från ett annat nät: `nmap -Pn <publik-ip>`. Allt ska visas som filtered.
+   - `ADMIN_NET` är nätet du sitter på, med rätt nätmask. 255.255.254.0 motsvarar /23.
+   - **Tailscale:** öppna länken som visas och logga in. Tryck *inte* Ctrl+C, för skriptet fortsätter av sig självt.
+   - **Brandväggen:** öppna en ny SSH-anslutning. Om den fungerar skriver du `JA` inom 2 minuter. Annars tas reglerna bort automatiskt.
+   - Om något stoppar: rätta felet och kör samma kommando igen. Steg som redan är klara hoppas över.
+4. **Godkänn subnet-routen** `172.30.N.0/24` för boxen i Tailscale-konsolen (*Machines → boxen → Edit route settings*).
+5. **Grafana:** öppna `http://172.30.N.20:3000` och logga in med admin/admin. Byt lösenord när du blir ombedd.
+6. **Starta om** (`reboot`). `vmbr0` går då över till DHCP och kan få en ny adress. Anslut därefter via Tailscale (`ssh root@netdiagN`). Kontrollera:
+   ```
+   pct status 120                          # running
+   pct exec 120 -- systemctl --failed      # 0 loaded units listed
+   ```
+7. **Före leverans till kund:** ta bort admin-undantaget för ditt lokala nät. Efter det fungerar bara Tailscale.
+   ```
+   sed -i '/TILLFÄLLIG/d' /etc/nftables.conf && nft -f /etc/nftables.conf
+   ```
+   Testa från ett annat nät: `nmap -Pn <publik-ip>`. Alla portar ska visas som filtered.
+
+Allt startar automatiskt vid omstart: brandvägg, Tailscale, netmon-containern och alla tjänster i den.
+
+### Standardmål
+
+`1.1.1.1 8.8.8.8 9.9.9.9 ping.sunet.se teliaplay.se`. Lägg till kundens router och operatörens första hopp med `EXTRA_TARGETS="…"` vid bootstrap, eller byt mål senare med `update-netmon.sh` (se nedan).
 
 ### Internt nät per box
 
@@ -61,9 +77,12 @@ Varje box har ett eget internt nät, `172.30.N.0/24`, där **N är numret i vär
 
 Om nätet ändå krockar med kundens nät avbryter skriptet. Välj då ett annat nät med `LAN_PREFIX=…`.
 
-| Box | Internt nät | netmon / Grafana | Uptime Kuma |
-|---|---|---|---|
-| netdiag3 | 172.30.3.0/24 | http://172.30.3.20:3000 | http://172.30.3.10:3001 |
+| Adress | Tjänst |
+|---|---|
+| 172.30.N.1 | Proxmox-värden (https://…:8006) |
+| 172.30.N.10 | Uptime Kuma, om den återställts med `KUMA_BACKUP` |
+| 172.30.N.20:3000 | Grafana |
+| 172.30.N.20:8080 | Felanmälningspaket och avbrottslogg |
 
 ### Nätverk: alltid DHCP
 
@@ -75,8 +94,9 @@ Boxen tar alltid IP via DHCP på `vmbr0`, både direkt mot internet och på kund
 |---|---|---|
 | `SITE_NAME` | hostname | Visas i rapporterna |
 | `ADMIN_NET` | – | Tillfälligt tillåtet admin-nät under uppsättning |
+| `TARGETS` | se Standardmål | Ersätt standardmålen helt |
 | `KUMA_BACKUP` | – | vzdump-fil med Uptime Kuma som ska återställas |
-| `EXTRA_TARGETS` | – | Extra mätmål, t.ex. kundens router eller operatörens första hopp |
+| `EXTRA_TARGETS` | – | Mätmål utöver standardmålen, t.ex. kundens router eller operatörens första hopp |
 | `WAN_DHCP` | `1` | `0` = behåll statisk IP på vmbr0 |
 | `BOX_ID` | siffran i värdnamnet | Boxnummer N, avgör det interna nätet |
 | `LAN_PREFIX` | `172.30` | Internt nät blir `LAN_PREFIX.N.0/24` |

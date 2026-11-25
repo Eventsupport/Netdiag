@@ -9,7 +9,8 @@
 #   ADMIN_NET=192.168.1.0/24   tillåt admin från ditt eget nät under uppsättning
 #                              (kör om utan ADMIN_NET innan boxen åker till kund)
 #   KUMA_BACKUP=/root/vzdump-lxc-XXX.tar.zst   återställ Uptime Kuma
-#   EXTRA_TARGETS="192.168.1.1"                extra mätmål till netmon
+#   EXTRA_TARGETS="192.168.1.1"                extra mätmål utöver standardmålen
+#   TARGETS="..."                              ersätt standardmålen helt
 #   WAN_DHCP=0                 behåll statisk IP på vmbr0 (standard: DHCP)
 #   BOX_ID=3                   boxnummer (standard: siffran i värdnamnet)
 #   LAN_PREFIX=172.30          internt nät blir LAN_PREFIX.BOX_ID.0/24
@@ -169,7 +170,7 @@ done
 pct push "$NETMON_ID" "$HERE/netdiag-web.py" /root/netdiag-web.py
 install -m 0755 "$HERE/netdiag-export.sh" /usr/local/bin/netdiag-export
 TZ_NAME="$(timedatectl show -p Timezone --value 2>/dev/null || echo Europe/Stockholm)"
-pct exec "$NETMON_ID" -- env TZ_NAME="$TZ_NAME" SITE_NAME="$SITE_NAME" EXTRA_TARGETS="$EXTRA_TARGETS" \
+pct exec "$NETMON_ID" -- env TZ_NAME="$TZ_NAME" SITE_NAME="$SITE_NAME" ${TARGETS:+TARGETS="$TARGETS"} EXTRA_TARGETS="$EXTRA_TARGETS" \
   bash /root/setup-netmon.sh
 
 # -----------------------------------------------------------------------------
