@@ -2,11 +2,6 @@
 
 Nätverksdiagnostik hos kund: en liten Proxmox-box som sitter direkt på kundens internetanslutning och mäter linjen dygnet runt. Resultatet används för att se var på vägen det tar stopp, och som underlag vid felanmälan till operatören (t.ex. Telia).
 
-| Box | Status |
-|---|---|
-| netdiag2.bloms.it | Uptime Kuma, äldre uppsättning |
-| netdiag3.bloms.it | Ny standard enligt detta repo |
-
 ## Arkitektur
 
 ```
@@ -34,7 +29,7 @@ Nätverksdiagnostik hos kund: en liten Proxmox-box som sitter direkt på kundens
 ## Ny box från början
 
 1. **Installera Proxmox VE 9** från ISO.
-   - Hostname: `netdiagN.bloms.it`.
+   - Hostname: `netdiagN.example.com`, där N är boxens nummer.
    - Ge boxen en tillfällig statisk IP på ditt eget nät.
 2. **Hämta repot** till värden:
    ```
@@ -44,7 +39,6 @@ Nätverksdiagnostik hos kund: en liten Proxmox-box som sitter direkt på kundens
    apt-get update && apt-get install -y git tmux
    git clone https://github.com/Eventsupport/Netdiag.git /root/netdiag
    ```
-   Repot är privat, så git frågar efter användarnamn och token. Använd en fine-grained token med läsrättighet till just detta repo.
 3. **Kör bootstrap**:
    ```
    cd /root/netdiag/scripts
