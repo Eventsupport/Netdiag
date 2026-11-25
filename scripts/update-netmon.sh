@@ -44,7 +44,10 @@ pct exec "$NETMON_ID" -- mkdir -p /root/netdiag-dashboards
 for d in "$HERE"/../grafana/*.json; do
   [[ -f "$d" ]] && pct push "$NETMON_ID" "$d" "/root/netdiag-dashboards/$(basename "$d")"
 done
+pct push "$NETMON_ID" "$HERE/netdiag-web.py" /root/netdiag-web.py
+install -m 0755 "$HERE/netdiag-export.sh" /usr/local/bin/netdiag-export
+TZ_NAME="$(timedatectl show -p Timezone --value 2>/dev/null || echo Europe/Stockholm)"
 
 echo "==> Kör setup-netmon.sh"
-pct exec "$NETMON_ID" -- env SITE_NAME="$site" TARGETS="$targets" EXTRA_TARGETS="" \
+pct exec "$NETMON_ID" -- env TZ_NAME="$TZ_NAME" SITE_NAME="$site" TARGETS="$targets" EXTRA_TARGETS="" \
   bash /root/setup-netmon.sh

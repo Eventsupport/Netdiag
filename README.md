@@ -108,12 +108,18 @@ Exempel:
 2026-11-25 21:20:05  ping.sunet.se       SVARAR IGEN  avbrott 2026-11-25 21:20:02 – 2026-11-25 21:20:05, 3 paket utan svar (3 s)
 ```
 
-Skapa ett paket för ett tidsintervall:
+Skapa ett felanmälningspaket. Det finns tre sätt:
 
-```
-pct exec 120 -- netdiag-report "2026-11-25 08:00" "2026-11-25 12:00"
-pct pull 120 /var/lib/netdiag/export/<fil>.zip ./<fil>.zip
-```
+1. **Från Grafana.** Zooma in på perioden i dashboarden och klicka på länken **Felanmälningspaket för vald period (zip)** uppe till höger. Zip-filen laddas ner direkt.
+2. **Från webbsidan** `http://172.30.N.20:8080/`. Välj från och till. Där finns också de senaste avbrotten och tidigare skapade paket.
+3. **Från terminalen** på värden:
+   ```
+   netdiag-export "08:00" "12:00"                       # idag
+   netdiag-export "2026-11-25 08:00" "2026-11-26 12:00"
+   ```
+   Zip-filen hamnar i `/root`. Hämta den med WinSCP eller `pscp`.
+
+Webbsidan nås bara internt och via Tailscale. Allt annat stoppas av brandväggen.
 
 Zip-filen innehåller:
 
@@ -161,6 +167,8 @@ Grafana: mappen **netdiag** → **netdiag – MTR per hopp**. Där finns en sekt
 |---|---|---|
 | `scripts/bootstrap-netdiag.sh` | Proxmox-värden | Repos, uppdatering, vmbr1/NAT, Tailscale, LXC:er, brandvägg |
 | `scripts/setup-netmon.sh` | I netmon-LXC:n (anropas av bootstrap) | network_exporter, Prometheus, Grafana, netdiag-skript |
+| `scripts/netdiag-export.sh` | Proxmox-värden (som `netdiag-export`) | Skapar felanmälningspaket och lägger det i /root |
+| `scripts/netdiag-web.py` | I netmon-LXC:n (port 8080) | Webbsida för felanmälningspaket och avbrottslogg |
 | `scripts/update-netmon.sh` | Proxmox-värden | Uppdaterar en befintlig box efter `git pull` (behåller mätmål) |
 | `grafana/*.json` | – | Dashboards som installeras automatiskt i Grafana |
 

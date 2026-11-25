@@ -599,5 +599,22 @@
         }
       }
     }
+  ],
+  "links": [
+    {
+      "title": "Felanmälningspaket för vald period (zip)",
+      "type": "link",
+      "icon": "cloud",
+      "url": "http://@NETMON_HOST@:8080/report?from=${__from}&to=${__to}",
+      "targetBlank": true,
+      "tooltip": "Skapar och laddar ner sammanfattning, avbrottslogg, MTR-rapporter och pinglogg för perioden du tittar på"
+    },
+    {
+      "title": "Avbrottslogg och tidigare paket",
+      "type": "link",
+      "icon": "doc",
+      "url": "http://@NETMON_HOST@:8080/",
+      "targetBlank": true
+    }
   ]
 }

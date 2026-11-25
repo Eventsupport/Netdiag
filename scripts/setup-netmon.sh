@@ -24,13 +24,22 @@ MTR_INTERVAL="${MTR_INTERVAL:-0.5}"
 DATA="/var/lib/netdiag"
 
 [[ $EUID -eq 0 ]] || { echo "Kör skriptet som root." >&2; exit 1; }
+
+# Samma tidszon som värden – annars får loggar och rapporter fel klockslag.
+TZ_NAME="${TZ_NAME:-Europe/Stockholm}"
+if [[ -f "/usr/share/zoneinfo/$TZ_NAME" ]]; then
+  ln -sf "/usr/share/zoneinfo/$TZ_NAME" /etc/localtime
+  echo "$TZ_NAME" > /etc/timezone
+  echo "==> Tidszon: $TZ_NAME"
+fi
 ALL_TARGETS="$(echo $TARGETS $EXTRA_TARGETS)"
 
 echo "==> Installerar paket"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
 apt-get install -y --no-install-recommends \
-  ca-certificates curl gnupg jq mtr-tiny iputils-ping prometheus tar gzip zip util-linux gawk
+  ca-certificates curl gnupg jq mtr-tiny iputils-ping prometheus tar gzip zip util-linux gawk \
+  python3 tzdata
 
 # -----------------------------------------------------------------------------
 echo "==> Installerar network_exporter"
@@ -165,7 +174,11 @@ providers:
       path: /var/lib/grafana/dashboards
 EOF
 if compgen -G "/root/netdiag-dashboards/*.json" >/dev/null; then
-  cp /root/netdiag-dashboards/*.json /var/lib/grafana/dashboards/
+  # @NETMON_HOST@ i länkarna ersätts med containerns adress
+  host_ip="$(hostname -I | awk '{print $1}')"
+  for d in /root/netdiag-dashboards/*.json; do
+    sed "s/@NETMON_HOST@/${host_ip}/g" "$d" > "/var/lib/grafana/dashboards/$(basename "$d")"
+  done
 fi
 chown -R grafana:grafana /var/lib/grafana/dashboards 2>/dev/null || true
 
@@ -354,6 +367,24 @@ RuntimeMaxSec=1d
 WantedBy=multi-user.target
 EOF
 
+# --- Webbsida för felanmälningspaket (port 8080) -----------------------------
+if [[ -f /root/netdiag-web.py ]]; then
+  install -m 0755 /root/netdiag-web.py /usr/local/bin/netdiag-web
+  cat > /etc/systemd/system/netdiag-web.service <<'EOF'
+[Unit]
+Description=netdiag webbsida för felanmälningspaket
+After=network-online.target
+
+[Service]
+ExecStart=/usr/bin/python3 -I /usr/local/bin/netdiag-web
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+fi
+
 # --- Visa avbrottsloggen ------------------------------------------------------
 cat > /usr/local/bin/netdiag-events <<'EOF'
 #!/usr/bin/env bash
@@ -415,6 +446,10 @@ systemctl enable --now network_exporter prometheus grafana-server
 systemctl restart network_exporter prometheus grafana-server
 systemctl enable --now netdiag-ping.timer netdiag-mtr.timer netdiag-cleanup.timer
 
+if [[ -f /etc/systemd/system/netdiag-web.service ]]; then
+  systemctl enable netdiag-web >/dev/null 2>&1; systemctl restart netdiag-web
+fi
+
 # Pingvakter: en per mål, stoppa vakter för mål som tagits bort
 for u in $(systemctl list-units --all --plain --no-legend 'netdiag-pingwatch@*' | awk '{print $1}'); do
   inst="${u#netdiag-pingwatch@}"; inst="${inst%.service}"
@@ -431,6 +466,7 @@ cat <<EOF
 =============================================================
  Klart!
  Grafana:          http://${ip4}:3000   (admin / admin)
+ Felanmälan:       http://${ip4}:8080
  Prometheus:       http://${ip4}:9090
  network_exporter: http://${ip4}:9427/metrics
  Mål:              ${ALL_TARGETS}
