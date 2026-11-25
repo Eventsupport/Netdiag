@@ -170,7 +170,8 @@ done
 pct push "$NETMON_ID" "$HERE/netdiag-web.py" /root/netdiag-web.py
 install -m 0755 "$HERE/netdiag-export.sh" /usr/local/bin/netdiag-export
 TZ_NAME="$(timedatectl show -p Timezone --value 2>/dev/null || echo Europe/Stockholm)"
-pct exec "$NETMON_ID" -- env TZ_NAME="$TZ_NAME" SITE_NAME="$SITE_NAME" ${TARGETS:+TARGETS="$TARGETS"} EXTRA_TARGETS="$EXTRA_TARGETS" \
+tgt_env=(); [[ -n "${TARGETS:-}" ]] && tgt_env=(TARGETS="$TARGETS")
+pct exec "$NETMON_ID" -- env TZ_NAME="$TZ_NAME" SITE_NAME="$SITE_NAME" "${tgt_env[@]}" EXTRA_TARGETS="$EXTRA_TARGETS" \
   bash /root/setup-netmon.sh
 
 # -----------------------------------------------------------------------------
