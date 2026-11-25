@@ -11,6 +11,8 @@
 #   KUMA_BACKUP=/root/vzdump-lxc-XXX.tar.zst   återställ Uptime Kuma
 #   EXTRA_TARGETS="192.168.1.1"                extra mätmål till netmon
 #   WAN_DHCP=0                 behåll statisk IP på vmbr0 (standard: DHCP)
+#   BOX_ID=3                   boxnummer (standard: siffran i värdnamnet)
+#   LAN_PREFIX=172.30          internt nät blir LAN_PREFIX.BOX_ID.0/24
 #
 # Steg: repos -> uppdatering -> vmbr1 -> Tailscale -> LXC:er -> brandvägg
 #       -> vmbr0 till DHCP (gäller från nästa omstart)
@@ -23,15 +25,34 @@ ADMIN_NET="${ADMIN_NET:-}"
 KUMA_BACKUP="${KUMA_BACKUP:-}"
 EXTRA_TARGETS="${EXTRA_TARGETS:-}"
 WAN="vmbr0"; LAN="vmbr1"
-LAN_IP="10.10.10.1"; LAN_NET="10.10.10.0/24"
-NETMON_ID=120; NETMON_IP="10.10.10.20"
-KUMA_ID=110;   KUMA_IP="10.10.10.10"
+# Internt nät per box: 172.30.<BOX_ID>.0/24. BOX_ID tas från värdnamnet
+# (netdiag3 -> 3) så att varje box får ett unikt nät i Tailscale.
+BOX_ID="${BOX_ID:-$(hostname -s | grep -oE '[0-9]+$' || true)}"
+LAN_PREFIX="${LAN_PREFIX:-172.30}"
+[[ "$BOX_ID" =~ ^[0-9]+$ ]] && (( BOX_ID >= 1 && BOX_ID <= 254 )) || {
+  echo "Kan inte avgöra boxnummer från värdnamnet. Ange BOX_ID=N (1–254)." >&2; exit 1; }
+LAN_IP="$LAN_PREFIX.$BOX_ID.1"; LAN_NET="$LAN_PREFIX.$BOX_ID.0/24"
+NETMON_ID=120; NETMON_IP="$LAN_PREFIX.$BOX_ID.20"
+KUMA_ID=110;   KUMA_IP="$LAN_PREFIX.$BOX_ID.10"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 
 [[ $EUID -eq 0 ]] || { echo "Kör som root." >&2; exit 1; }
 command -v pveversion >/dev/null || { echo "Detta är ingen Proxmox-värd." >&2; exit 1; }
 [[ -f "$HERE/setup-netmon.sh" ]] || { echo "setup-netmon.sh saknas i $HERE" >&2; exit 1; }
 step() { echo; echo "==> $*"; }
+
+# Avbryt om det interna nätet krockar med nätet utanför (vmbr0).
+if ip -4 route show dev "$WAN" 2>/dev/null | grep -q "^$LAN_PREFIX\.$BOX_ID\."; then
+  echo "Internt nät $LAN_NET krockar med nätet på $WAN. Välj annat med LAN_PREFIX=…" >&2
+  exit 1
+fi
+# Varna om vmbr1 redan finns med en annan adress.
+if grep -q "iface $LAN" /etc/network/interfaces && \
+   ! grep -A2 "iface $LAN" /etc/network/interfaces | grep -q "address $LAN_IP/"; then
+  echo "$LAN finns redan med en annan adress än $LAN_IP. Ändra/ta bort den först." >&2
+  exit 1
+fi
+echo "Box $BOX_ID – internt nät $LAN_NET"
 
 # -----------------------------------------------------------------------------
 step "Paketkällor: no-subscription"
