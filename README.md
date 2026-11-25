@@ -156,7 +156,7 @@ Bra mål att ha med:
 
 Grafana: mappen **netdiag** → **netdiag – MTR per hopp**. Där finns en sektion per mål med:
 
-- en hopptabell för vald period, som i PingPlotter
+- en hopptabell för vald period, som i PingPlotter, med IP-adress och namn (omvänd DNS) per hopp
 - slutmålets latens och förlust
 - latens per hopp och förlust per hopp över tid
 - antal hopp, som visar när vägen byts

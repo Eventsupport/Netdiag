@@ -7,15 +7,22 @@
                             eller "ÅÅÅÅ-MM-DDTHH:MM" (formuläret)
   /export/<fil>.zip         hämtar ett tidigare skapat paket
   /events                   hela avbrottsloggen som text
+  /metrics                  netdiag_hop_info{path,hostname} – omvänd DNS för
+                            alla hopp-adresser (läses av Prometheus)
 
 Nås bara internt / via Tailscale (brandväggen på värden släpper inget utifrån).
 """
+import concurrent.futures
 import datetime
 import html
 import os
 import re
+import socket
 import subprocess
+import threading
+import time
 import urllib.parse
+import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 DATA = os.environ.get("NETDIAG_DATA", "/var/lib/netdiag")
@@ -30,6 +37,55 @@ h1{font-size:1.4rem}h2{font-size:1.1rem;margin-top:2rem}
 input,button{font-size:1rem;padding:.3rem .5rem}button{cursor:pointer}
 pre{background:#f4f4f4;padding:.8rem;overflow-x:auto;font-size:.85rem}
 .err{color:#b00}td{padding:.2rem .8rem .2rem 0}"""
+
+
+# --- Omvänd DNS för hopp ------------------------------------------------------
+EXPORTER = os.environ.get("NETDIAG_EXPORTER", "http://localhost:9427/metrics")
+RDNS_TTL = 6 * 3600          # slå upp namnet igen efter 6 h
+RDNS_KEEP = 7 * 86400        # visa adresser som setts senaste 7 dygnen
+_rdns = {}                   # ip -> [namn, uppslagen, senast sedd]
+_pending = set()
+_lock = threading.Lock()
+_pool = concurrent.futures.ThreadPoolExecutor(max_workers=4)
+PATH_RE = re.compile(r'^mtr_rtt_seconds\{[^}]*\bpath="([^"]+)"', re.M)
+
+
+def _resolve(ip):
+    try:
+        name = socket.gethostbyaddr(ip)[0]
+    except Exception:
+        name = ""
+    with _lock:
+        seen = _rdns.get(ip, [None, 0, time.time()])[2]
+        _rdns[ip] = [name, time.time(), seen]
+        _pending.discard(ip)
+
+
+def _esc(v):
+    return v.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "")
+
+
+def hop_metrics():
+    try:
+        txt = urllib.request.urlopen(EXPORTER, timeout=5).read().decode("utf-8", "replace")
+        current = set(PATH_RE.findall(txt))
+    except Exception:
+        current = set()
+    now = time.time()
+    with _lock:
+        for ip in current:
+            ent = _rdns.setdefault(ip, ["", 0, now])
+            ent[2] = now
+            if now - ent[1] > RDNS_TTL and ip not in _pending:
+                _pending.add(ip)
+                _pool.submit(_resolve, ip)
+        for ip in [ip for ip, e in _rdns.items() if now - e[2] > RDNS_KEEP]:
+            del _rdns[ip]
+        items = sorted((ip, e[0]) for ip, e in _rdns.items())
+    out = ["# HELP netdiag_hop_info Omvänd DNS för hopp-adresser i MTR.",
+           "# TYPE netdiag_hop_info gauge"]
+    out += [f'netdiag_hop_info{{path="{_esc(ip)}",hostname="{_esc(n)}"}} 1' for ip, n in items]
+    return "\n".join(out) + "\n"
 
 
 def parse_time(v):
@@ -100,6 +156,8 @@ class Handler(BaseHTTPRequestHandler):
                 if name.endswith(".zip") and os.path.isfile(path):
                     return self.send_zip(path)
                 return self.page("<p class='err'>Filen finns inte.</p>", 404)
+            if u.path == "/metrics":
+                return self.send(200, hop_metrics(), "text/plain; version=0.0.4; charset=utf-8")
             if u.path == "/events":
                 return self.send(200, "".join(tail(EVENTS, 100000)) or "Inga avbrott loggade.\n",
                                  "text/plain; charset=utf-8")

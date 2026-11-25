@@ -135,6 +135,10 @@ scrape_configs:
   - job_name: network_exporter
     static_configs:
       - targets: ['localhost:9427']
+  - job_name: netdiag_web        # omvänd DNS för hopp (netdiag_hop_info)
+    scrape_interval: 60s
+    static_configs:
+      - targets: ['localhost:8080']
 EOF
 echo "ARGS=\"--storage.tsdb.retention.time=${RETENTION_DAYS}d\"" > /etc/default/prometheus
 
