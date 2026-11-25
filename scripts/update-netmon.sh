@@ -5,6 +5,11 @@
 # Körs som root på Proxmox-värden:
 #   cd /root/netdiag && git pull && bash scripts/update-netmon.sh
 #
+# Byta mätmål (ersätter hela listan):
+#   TARGETS="192.168.1.1 100.67.232.1 1.1.1.1 8.8.8.8 dns.google" bash scripts/update-netmon.sh
+# Byta platsnamn:
+#   SITE_NAME="Kund AB Ort" bash scripts/update-netmon.sh
+#
 # - Kör om setup-netmon.sh i netmon-LXC:n med befintliga mätmål/platsnamn
 # - Installerar/uppdaterar Grafana-dashboards från grafana/
 # - Uppdaterar sysctl-inställningar på värden
@@ -28,8 +33,8 @@ sysctl --system >/dev/null
 
 echo "==> Läser befintlig konfiguration från CT $NETMON_ID"
 conf="$(pct exec "$NETMON_ID" -- cat /etc/netdiag.conf)"
-site="$(sed -nE 's/^SITE_NAME="(.*)"$/\1/p' <<<"$conf")"
-targets="$(sed -nE 's/^TARGETS="(.*)"$/\1/p' <<<"$conf")"
+site="${SITE_NAME:-$(sed -nE 's/^SITE_NAME="(.*)"$/\1/p' <<<"$conf")}"
+targets="${TARGETS:-$(sed -nE 's/^TARGETS="(.*)"$/\1/p' <<<"$conf")}"
 echo "   Plats: $site"
 echo "   Mål:   $targets"
 

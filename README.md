@@ -116,6 +116,20 @@ Kör en MTR manuellt: `pct exec 120 -- netdiag-mtr manual 8.8.8.8`
 cd /root/netdiag && git pull && bash scripts/update-netmon.sh
 ```
 
+### Byta mätmål
+
+Listan ersätts helt med de mål du anger. Både IP-adresser och värdnamn fungerar.
+
+```
+TARGETS="192.168.1.1 100.67.232.1 1.1.1.1 8.8.8.8" bash scripts/update-netmon.sh
+```
+
+Bra mål att ha med:
+
+- **Kundens router.** Visar om felet ligger i kundens eget LAN.
+- **Operatörens första hopp.** Det är den första publika eller CGNAT-adressen i en MTR-rapport. Visar om felet ligger i accessnätet.
+- **Operatörens DNS och ett par stora mål**, t.ex. 1.1.1.1 och 8.8.8.8. Visar om felet ligger längre ut.
+
 Grafana: mappen **netdiag** → **netdiag – MTR per hopp**. Där finns en sektion per mål med:
 
 - en hopptabell för vald period, som i PingPlotter
