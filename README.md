@@ -110,15 +110,30 @@ Kör en MTR manuellt: `pct exec 120 -- netdiag-mtr manual 8.8.8.8`
 
 **Tolkning:** Förlust på ett hopp i mitten som *inte* fortsätter till senare hopp beror nästan alltid på att routern begränsar ICMP-svar. Det är inget fel. Förlust som börjar på ett visst hopp och fortsätter hela vägen till målet visar var problemet ligger.
 
+## Uppdatera en befintlig box
+
+```
+cd /root/netdiag && git pull && bash scripts/update-netmon.sh
+```
+
+Grafana: mappen **netdiag** → **netdiag – MTR per hopp**. Där finns en sektion per mål med:
+
+- en hopptabell för vald period, som i PingPlotter
+- slutmålets latens och förlust
+- latens per hopp och förlust per hopp över tid
+- antal hopp, som visar när vägen byts
+
 ## Filer
 
 | Fil | Körs på | Gör |
 |---|---|---|
 | `scripts/bootstrap-netdiag.sh` | Proxmox-värden | Repos, uppdatering, vmbr1/NAT, Tailscale, LXC:er, brandvägg |
 | `scripts/setup-netmon.sh` | I netmon-LXC:n (anropas av bootstrap) | network_exporter, Prometheus, Grafana, netdiag-skript |
+| `scripts/update-netmon.sh` | Proxmox-värden | Uppdaterar en befintlig box efter `git pull` (behåller mätmål) |
+| `grafana/*.json` | – | Dashboards som installeras automatiskt i Grafana |
 
 ## Att göra
 
-- [ ] Grafana-dashboard för latens/förlust per hopp (kräver mätvärdesnamn från en körande box)
+- [x] Grafana-dashboard för latens/förlust per hopp
 - [ ] Schemalagda hastighetstester
 - [ ] Central översikt över alla boxar
