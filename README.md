@@ -91,6 +91,23 @@ Boxen sparar automatiskt:
 - **Varje timme:** MTR-rapport i textformat med 100 paket per hopp.
 - **Vid förlust ≥ 5 %:** en extra MTR direkt.
 
+- **Hela tiden:** en pingvakt per mål skickar 1 ping/s. Den loggar varje gång målet slutar svara och när det svarar igen, med datum, tid och längd. Loggen finns i `/var/lib/netdiag/events.log`.
+
+Visa avbrottsloggen:
+
+```
+pct exec 120 -- netdiag-events                 # alla avbrott
+pct exec 120 -- netdiag-events ping.sunet.se   # ett mål
+pct exec 120 -- netdiag-events -f              # följ live
+```
+
+Exempel:
+
+```
+2026-11-25 21:20:02  ping.sunet.se       INGET SVAR
+2026-11-25 21:20:05  ping.sunet.se       SVARAR IGEN  avbrott 2026-11-25 21:20:02 – 2026-11-25 21:20:05, 3 paket utan svar (3 s)
+```
+
 Skapa ett paket för ett tidsintervall:
 
 ```
@@ -100,7 +117,8 @@ pct pull 120 /var/lib/netdiag/export/<fil>.zip ./<fil>.zip
 
 Zip-filen innehåller:
 
-- `SAMMANFATTNING.txt`: förlust och latens per mål, samt de minuter som hade förlust.
+- `SAMMANFATTNING.txt`: alla avbrott, förlust och latens per mål, samt de minuter som hade förlust.
+- `avbrott.log`: pingvaktens logg för perioden.
 - Alla MTR-rapporter från perioden.
 - Pingloggen.
 

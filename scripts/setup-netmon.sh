@@ -30,7 +30,7 @@ echo "==> Installerar paket"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
 apt-get install -y --no-install-recommends \
-  ca-certificates curl gnupg jq mtr-tiny iputils-ping prometheus tar gzip zip util-linux
+  ca-certificates curl gnupg jq mtr-tiny iputils-ping prometheus tar gzip zip util-linux gawk
 
 # -----------------------------------------------------------------------------
 echo "==> Installerar network_exporter"
@@ -255,6 +255,10 @@ awk -F, -v f="$from" -v t="$to" 'NR>1 && $1>=f && $1<=t' "$DATA/ping.csv" >> "$o
 
 find "$DATA/reports" -type f -name '*.txt' -newermt "$1" ! -newermt "$2" -exec cp {} "$out/mtr/" \;
 
+f_s=$(date -d "@$from" '+%F %T'); t_s=$(date -d "@$to" '+%F %T')
+touch "$DATA/events.log"
+awk -v f="$f_s" -v t="$t_s" '{ s = substr($0,1,19) } s >= f && s <= t' "$DATA/events.log" > "$out/avbrott.log"
+
 {
   echo "NÄTVERKSMÄTNING – UNDERLAG FÖR FELANMÄLAN"
   echo "========================================="
@@ -273,6 +277,15 @@ find "$DATA/reports" -type f -name '*.txt' -newermt "$1" ! -newermt "$2" -exec c
       for (k in n) printf "%-18s %8d %10.2f %10d %10.1f %14d\n", k, n[k], s[k]/n[k], m[k], (ln[k]?ls[k]/ln[k]:0), b[k]
     }' "$out/ping.csv"
   echo
+  echo "AVBROTT (pingvakt, 1 paket/s per mål)"
+  if grep -q 'SVARAR IGEN' "$out/avbrott.log"; then
+    grep 'SVARAR IGEN' "$out/avbrott.log" | sed 's/^/  /' | head -n 500
+  else
+    echo "  Inga avbrott under perioden."
+  fi
+  grep -q 'INGET SVAR' "$out/avbrott.log" && \
+    echo "  (Fullständig logg med start och slut: avbrott.log)"
+  echo
   echo "MINUTER MED FÖRLUST >= ${LOSS_THRESHOLD} %"
   awk -F, -v th="$LOSS_THRESHOLD" 'NR>1 && $6>=th { printf "  %s  %-16s %3d %% förlust\n", $2, $3, $6 }' "$out/ping.csv" | head -n 500
   echo
@@ -289,6 +302,68 @@ find "$DATA/reports" -type f -name '*.txt' -newermt "$1" ! -newermt "$2" -exec c
 echo "Klart: $DATA/export/$name.zip"
 EOF
 
+# --- Pingvakt: 1 ping/s per mål, loggar varje avbrott med tid -----------------
+cat > /usr/local/bin/netdiag-pingwatch <<'EOF'
+#!/usr/bin/env bash
+# Körs som tjänst per mål: netdiag-pingwatch@<mål>.service
+# Skriver till $DATA/events.log när målet slutar svara och när det svarar igen.
+set -uo pipefail
+. /etc/netdiag.conf
+t="$1"; log="$DATA/events.log"
+now() { date '+%F %T'; }
+ping -n -D -O -i 1 -W 1 "$t" 2>&1 | gawk -v t="$t" -v logf="$log" '
+  function ts(e) { return strftime("%Y-%m-%d %H:%M:%S", e) }
+  function out(s) { print s >> logf; fflush(logf) }
+  /^\[[0-9.]+\]/ {
+    e = substr($1, 2, length($1) - 2) + 0
+    if ($0 ~ /no answer yet|[Uu]nreachable|sendmsg/) {
+      if (!down) { down = 1; start = e; n = 0
+        out(sprintf("%s  %-18s  INGET SVAR", ts(e), t)) }
+      n++; next
+    }
+    if ($0 ~ /bytes from/) {
+      if (down) {
+        out(sprintf("%s  %-18s  SVARAR IGEN  avbrott %s – %s, %d paket utan svar (%d s)",
+                    ts(e), t, ts(start), ts(e), n, int(e - start + 0.5)))
+        down = 0
+      }
+      next
+    }
+  }
+  /^ping: / { out(sprintf("%s  %-18s  FEL  %s", strftime("%Y-%m-%d %H:%M:%S"), t, $0)) }
+'
+# ping avslutades (t.ex. DNS-fel eller ingen väg ut) – systemd startar om.
+echo "$(now)  $(printf '%-18s' "$t")  PINGVAKT STARTAS OM" >> "$log"
+exit 1
+EOF
+
+cat > /etc/systemd/system/netdiag-pingwatch@.service <<'EOF'
+[Unit]
+Description=netdiag pingvakt för %i
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/local/bin/netdiag-pingwatch %i
+Restart=always
+RestartSec=10
+# Starta om dagligen så att värdnamn slås upp på nytt
+RuntimeMaxSec=1d
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# --- Visa avbrottsloggen ------------------------------------------------------
+cat > /usr/local/bin/netdiag-events <<'EOF'
+#!/usr/bin/env bash
+# Användning: netdiag-events [mål]   |   netdiag-events -f   (följ live)
+. /etc/netdiag.conf
+log="$DATA/events.log"; [[ -f "$log" ]] || { echo "Inga avbrott loggade än."; exit 0; }
+if [[ "${1:-}" == "-f" ]]; then exec tail -n 50 -f "$log"; fi
+if [[ -n "${1:-}" ]]; then grep -F "  $1 " "$log"; else cat "$log"; fi
+EOF
+
 # --- Städning -----------------------------------------------------------------
 cat > /usr/local/bin/netdiag-cleanup <<'EOF'
 #!/usr/bin/env bash
@@ -299,6 +374,10 @@ find "$DATA/export" -type f -mtime +"$RETENTION_DAYS" -delete
 if [[ -f "$DATA/ping.csv" ]]; then
   cut=$(( $(date +%s) - RETENTION_DAYS*86400 ))
   awk -F, -v c="$cut" 'NR==1 || $1>=c' "$DATA/ping.csv" > "$DATA/ping.csv.tmp" && mv "$DATA/ping.csv.tmp" "$DATA/ping.csv"
+fi
+if [[ -f "$DATA/events.log" ]]; then
+  c=$(date -d "-$RETENTION_DAYS days" '+%F %T')
+  awk -v c="$c" 'substr($0,1,19) >= c' "$DATA/events.log" > "$DATA/events.log.tmp" && mv "$DATA/events.log.tmp" "$DATA/events.log"
 fi
 EOF
 chmod 0755 /usr/local/bin/netdiag-*
@@ -336,6 +415,16 @@ systemctl enable --now network_exporter prometheus grafana-server
 systemctl restart network_exporter prometheus grafana-server
 systemctl enable --now netdiag-ping.timer netdiag-mtr.timer netdiag-cleanup.timer
 
+# Pingvakter: en per mål, stoppa vakter för mål som tagits bort
+for u in $(systemctl list-units --all --plain --no-legend 'netdiag-pingwatch@*' | awk '{print $1}'); do
+  inst="${u#netdiag-pingwatch@}"; inst="${inst%.service}"
+  [[ " $ALL_TARGETS " == *" $inst "* ]] || systemctl disable --now "$u" >/dev/null 2>&1 || true
+done
+for t in $ALL_TARGETS; do
+  systemctl enable "netdiag-pingwatch@$t.service" >/dev/null 2>&1
+  systemctl restart "netdiag-pingwatch@$t.service"
+done
+
 ip4=$(hostname -I | awk '{print $1}')
 cat <<EOF
 
@@ -350,5 +439,7 @@ cat <<EOF
    netdiag-report "$(date +%F) 08:00" "$(date +%F) 12:00"
  MTR direkt:
    netdiag-mtr manual 8.8.8.8
+ Avbrottslogg:
+   netdiag-events          (alla)   netdiag-events -f   (live)
 =============================================================
 EOF
