@@ -113,7 +113,7 @@ Wants=network-online.target
 
 [Service]
 WorkingDirectory=/etc/network_exporter
-ExecStart=/usr/local/bin/network_exporter --config.file=/etc/network_exporter/network_exporter.yml
+ExecStart=/usr/local/bin/network_exporter --config.file=/etc/network_exporter/network_exporter.yml --ipv6=false
 Restart=always
 RestartSec=5
 
@@ -208,7 +208,7 @@ log="$DATA/ping.csv"
 [[ -f "$log" ]] || echo "epoch,tid,mal,skickade,mottagna,forlust_pct,min_ms,avg_ms,max_ms" > "$log"
 epoch=$(date +%s); now=$(date -d "@$epoch" -Iseconds)
 for t in $TARGETS; do
-  out=$(ping -n -q -c 20 -i 0.2 -W 1 "$t" 2>&1)
+  out=$(ping -4 -n -q -c 20 -i 0.2 -W 1 "$t" 2>&1)
   sent=$(sed -nE 's/^([0-9]+) packets transmitted, ([0-9]+) (packets )?received.*/\1/p' <<<"$out")
   recv=$(sed -nE 's/^([0-9]+) packets transmitted, ([0-9]+) (packets )?received.*/\2/p' <<<"$out")
   sent=${sent:-20}; recv=${recv:-0}
@@ -245,9 +245,9 @@ for t in $targets; do
     echo "# Publik IP: $pubip"
     echo "# Start:     $(date -Iseconds)"
     echo "# Mål:       $t"
-    echo "# Kommando:  mtr -r -w -b -c $MTR_COUNT -i $MTR_INTERVAL $t"
+    echo "# Kommando:  mtr -4 -r -w -b -c $MTR_COUNT -i $MTR_INTERVAL $t"
     echo
-    mtr -r -w -b -c "$MTR_COUNT" -i "$MTR_INTERVAL" "$t" 2>&1
+    mtr -4 -r -w -b -c "$MTR_COUNT" -i "$MTR_INTERVAL" "$t" 2>&1
     echo
     echo "# Slut:      $(date -Iseconds)"
   } > "$f"
@@ -328,7 +328,7 @@ set -uo pipefail
 . /etc/netdiag.conf
 t="$1"; log="$DATA/events.log"
 now() { date '+%F %T'; }
-ping -n -D -O -i 1 -W 1 "$t" 2>&1 | gawk -v t="$t" -v logf="$log" '
+ping -4 -n -D -O -i 1 -W 1 "$t" 2>&1 | gawk -v t="$t" -v logf="$log" '
   function ts(e) { return strftime("%Y-%m-%d %H:%M:%S", e) }
   function out(s) { print s >> logf; fflush(logf) }
   /^\[[0-9.]+\]/ {
