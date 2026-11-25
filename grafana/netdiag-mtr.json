@@ -95,7 +95,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(((max by (ttl, path) (avg_over_time(mtr_rtt_seconds{name=~\"$target-mtr\",type=\"loss\"}[$__range]))) * on(path) group_left(hostname) max by (path, hostname) (netdiag_hop_info)) or on(ttl, path) (max by (ttl, path) (avg_over_time(mtr_rtt_seconds{name=~\"$target-mtr\",type=\"loss\"}[$__range])))) * 100",
+          "expr": "(((max by (ttl, path) (avg_over_time(mtr_rtt_seconds{name=~\"$target-mtr\",type=\"loss\"}[$__range]))) * on(path) group_left(hostname) topk by (path) (1, max by (path, hostname) (netdiag_hop_info))) or on(ttl, path) (max by (ttl, path) (avg_over_time(mtr_rtt_seconds{name=~\"$target-mtr\",type=\"loss\"}[$__range])))) * 100",
           "refId": "A",
           "format": "table",
           "instant": true,
@@ -106,7 +106,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(((max by (ttl, path) (max_over_time(mtr_rtt_seconds{name=~\"$target-mtr\",type=\"loss\"}[$__range]))) * on(path) group_left(hostname) max by (path, hostname) (netdiag_hop_info)) or on(ttl, path) (max by (ttl, path) (max_over_time(mtr_rtt_seconds{name=~\"$target-mtr\",type=\"loss\"}[$__range])))) * 100",
+          "expr": "(((max by (ttl, path) (max_over_time(mtr_rtt_seconds{name=~\"$target-mtr\",type=\"loss\"}[$__range]))) * on(path) group_left(hostname) topk by (path) (1, max by (path, hostname) (netdiag_hop_info))) or on(ttl, path) (max by (ttl, path) (max_over_time(mtr_rtt_seconds{name=~\"$target-mtr\",type=\"loss\"}[$__range])))) * 100",
           "refId": "D",
           "format": "table",
           "instant": true,
@@ -117,7 +117,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(((max by (ttl, path) (avg_over_time(mtr_rtt_seconds{name=~\"$target-mtr\",type=\"mean\"}[$__range]))) * on(path) group_left(hostname) max by (path, hostname) (netdiag_hop_info)) or on(ttl, path) (max by (ttl, path) (avg_over_time(mtr_rtt_seconds{name=~\"$target-mtr\",type=\"mean\"}[$__range])))) * 1000",
+          "expr": "(((max by (ttl, path) (avg_over_time(mtr_rtt_seconds{name=~\"$target-mtr\",type=\"mean\"}[$__range]))) * on(path) group_left(hostname) topk by (path) (1, max by (path, hostname) (netdiag_hop_info))) or on(ttl, path) (max by (ttl, path) (avg_over_time(mtr_rtt_seconds{name=~\"$target-mtr\",type=\"mean\"}[$__range])))) * 1000",
           "refId": "B",
           "format": "table",
           "instant": true,
@@ -128,7 +128,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(((max by (ttl, path) (max_over_time(mtr_rtt_seconds{name=~\"$target-mtr\",type=\"worst\"}[$__range]))) * on(path) group_left(hostname) max by (path, hostname) (netdiag_hop_info)) or on(ttl, path) (max by (ttl, path) (max_over_time(mtr_rtt_seconds{name=~\"$target-mtr\",type=\"worst\"}[$__range])))) * 1000",
+          "expr": "(((max by (ttl, path) (max_over_time(mtr_rtt_seconds{name=~\"$target-mtr\",type=\"worst\"}[$__range]))) * on(path) group_left(hostname) topk by (path) (1, max by (path, hostname) (netdiag_hop_info))) or on(ttl, path) (max by (ttl, path) (max_over_time(mtr_rtt_seconds{name=~\"$target-mtr\",type=\"worst\"}[$__range])))) * 1000",
           "refId": "C",
           "format": "table",
           "instant": true,
@@ -471,7 +471,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(((mtr_rtt_seconds{name=~\"$target-mtr\",type=\"mean\"}) * on(path) group_left(hostname) max by (path, hostname) (netdiag_hop_info)) or on(name, ttl, path, type) (mtr_rtt_seconds{name=~\"$target-mtr\",type=\"mean\"})) * 1000",
+          "expr": "(((mtr_rtt_seconds{name=~\"$target-mtr\",type=\"mean\"}) * on(path) group_left(hostname) topk by (path) (1, max by (path, hostname) (netdiag_hop_info))) or on(name, ttl, path, type) (mtr_rtt_seconds{name=~\"$target-mtr\",type=\"mean\"})) * 1000",
           "refId": "A",
           "format": "time_series",
           "legendFormat": "{{ttl}}: {{path}} {{hostname}}"
@@ -524,7 +524,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(((mtr_rtt_seconds{name=~\"$target-mtr\",type=\"loss\"}) * on(path) group_left(hostname) max by (path, hostname) (netdiag_hop_info)) or on(name, ttl, path, type) (mtr_rtt_seconds{name=~\"$target-mtr\",type=\"loss\"})) * 100",
+          "expr": "(((mtr_rtt_seconds{name=~\"$target-mtr\",type=\"loss\"}) * on(path) group_left(hostname) topk by (path) (1, max by (path, hostname) (netdiag_hop_info))) or on(name, ttl, path, type) (mtr_rtt_seconds{name=~\"$target-mtr\",type=\"loss\"})) * 100",
           "refId": "A",
           "format": "time_series",
           "legendFormat": "{{ttl}}: {{path}} {{hostname}}"
