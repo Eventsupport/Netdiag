@@ -872,6 +872,14 @@
       "icon": "doc",
       "url": "http://@NETMON_HOST@:8080/",
       "targetBlank": true
+    },
+    {
+      "title": "Hjälp och kommandon",
+      "type": "link",
+      "icon": "question",
+      "url": "/d/netdiag-hjalp",
+      "targetBlank": false,
+      "keepTime": true
     }
   ]
 }

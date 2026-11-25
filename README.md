@@ -174,6 +174,8 @@ Bra mål att ha med:
 - **Operatörens första hopp.** Det är den första publika eller CGNAT-adressen i en MTR-rapport. Visar om felet ligger i accessnätet.
 - **Operatörens DNS och ett par stora mål**, t.ex. 1.1.1.1 och 8.8.8.8. Visar om felet ligger längre ut.
 
+Grafana har också dashboarden **netdiag – Hjälp och kommandon**, med alla kommandon från detta README färdiga att kopiera. Den nås via länken **Hjälp och kommandon** i huvuddashboarden.
+
 Grafana: mappen **netdiag** → **netdiag – MTR per hopp**. Där finns en sektion per mål med:
 
 - en hopptabell för vald period, som i PingPlotter, med IP-adress och namn (omvänd DNS) per hopp
