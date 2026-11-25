@@ -10,5 +10,5 @@ id="${NETMON_ID:-$(pct list | awk 'NR>1 && $NF ~ /^netmon(-|$)/ {print $1; exit}
 case "${1:-}" in
   "")   exec pct enter "$id" ;;
   --id) echo "$id" ;;
-  *)    exec pct exec "$id" -- env LANG=C.UTF-8 LC_ALL=C.UTF-8 "$@" ;;
+  *)    exec pct exec "$id" -- env PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin LANG=C.UTF-8 LC_ALL=C.UTF-8 "$@" ;;
 esac

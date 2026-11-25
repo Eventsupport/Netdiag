@@ -6,7 +6,7 @@ set -euo pipefail
 ID="${NETMON_ID:-$(pct list | awk 'NR>1 && $NF ~ /^netmon(-|$)/ {print $1; exit}')}"
 [[ -n "$ID" ]] || { echo "Hittar ingen netmon-container." >&2; exit 1; }
 [[ $# -eq 2 ]] || { echo "Användning: netdiag-export \"[ÅÅÅÅ-MM-DD ]HH:MM\" \"[ÅÅÅÅ-MM-DD ]HH:MM\"" >&2; exit 1; }
-out="$(pct exec "$ID" -- netdiag-report "$1" "$2")"
+out="$(pct exec "$ID" -- env LANG=C.UTF-8 LC_ALL=C.UTF-8 /usr/local/bin/netdiag-report "$1" "$2")"
 f="$(sed -n 's/^Klart: //p' <<<"$out")"
 [[ -n "$f" ]] || { echo "$out" >&2; exit 1; }
 dest="/root/$(basename "$f")"

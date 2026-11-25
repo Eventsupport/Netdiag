@@ -40,7 +40,7 @@ NETMON_ID="$id" bash "$HERE/update-netmon.sh"
 
 echo
 echo "==> Nollställer mätdata"
-pct exec "$id" -- env LANG=C.UTF-8 LC_ALL=C.UTF-8 netdiag-reset
+pct exec "$id" -- env LANG=C.UTF-8 LC_ALL=C.UTF-8 /usr/local/bin/netdiag-reset
 
 cat <<EOF
 
