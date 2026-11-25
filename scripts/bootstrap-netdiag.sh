@@ -142,7 +142,9 @@ fi
 if ! pct status "$NETMON_ID" >/dev/null 2>&1; then
   step "Skapar netmon (CT $NETMON_ID)"
   pveam update >/dev/null
-  tmpl="$(pveam available --section system | awk '{print $2}' | grep '^debian-13-standard' | sort -V | tail -n1)"
+  arch="$(dpkg --print-architecture)"   # amd64 på Intel/AMD
+  tmpl="$(pveam available --section system | awk '{print $2}' \
+    | grep -E "^debian-13-standard_.*_${arch}\.tar\.(zst|gz|xz)$" | sort -V | tail -n1)"
   [[ -n "$tmpl" ]] || { echo "Hittar ingen Debian 13-mall." >&2; exit 1; }
   pveam list local | grep -q "$tmpl" || pveam download local "$tmpl"
   pct create "$NETMON_ID" "local:vztmpl/$tmpl" \
