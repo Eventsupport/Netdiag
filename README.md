@@ -179,6 +179,7 @@ Grafana: mappen **netdiag** → **netdiag – MTR per hopp**. Där finns en sekt
 - en hopptabell för vald period, som i PingPlotter, med IP-adress och namn (omvänd DNS) per hopp
 - slutmålets latens och förlust
 - latens per hopp och förlust per hopp över tid
+- antal skickade, mottagna och tappade paket för perioden, och per minut
 - antal hopp, som visar när vägen byts
 
 ## Filer

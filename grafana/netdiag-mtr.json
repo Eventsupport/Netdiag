@@ -368,7 +368,7 @@
           },
           "refId": "C",
           "format": "time_series",
-          "expr": "ping_loss_percent{name=~\"$target-icmp\"} * 100",
+          "expr": "100 * sum by (target_ip) (increase(ping_rtt_snt_fail_count{name=~\"$target-icmp\"}[$__rate_interval])) / sum by (target_ip) (increase(ping_rtt_snt_count{name=~\"$target-icmp\"}[$__rate_interval]))",
           "legendFormat": "Förlust % ({{target_ip}})"
         }
       ],
@@ -558,6 +558,260 @@
       }
     },
     {
+      "type": "stat",
+      "title": "Paket till $target (vald period)",
+      "id": 8,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 26,
+        "w": 8,
+        "h": 7
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A",
+          "expr": "round(sum(increase(ping_rtt_snt_count{name=~\"$target-icmp\"}[$__range])))",
+          "legendFormat": "Skickade",
+          "instant": true,
+          "range": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "B",
+          "expr": "round(sum(increase(ping_rtt_snt_count{name=~\"$target-icmp\"}[$__range])) - sum(increase(ping_rtt_snt_fail_count{name=~\"$target-icmp\"}[$__range])))",
+          "legendFormat": "Mottagna",
+          "instant": true,
+          "range": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "C",
+          "expr": "round(sum(increase(ping_rtt_snt_fail_count{name=~\"$target-icmp\"}[$__range])))",
+          "legendFormat": "Tappade",
+          "instant": true,
+          "range": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "D",
+          "expr": "100 * sum(increase(ping_rtt_snt_fail_count{name=~\"$target-icmp\"}[$__range])) / sum(increase(ping_rtt_snt_count{name=~\"$target-icmp\"}[$__range]))",
+          "legendFormat": "Förlust",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "unit": "none",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Tappade"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "thresholds"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "red",
+                      "value": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Förlust"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "thresholds"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 0.1
+                    },
+                    {
+                      "color": "red",
+                      "value": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "textMode": "value_and_name",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Paket per minut till $target – mottagna och tappade",
+      "id": 9,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 26,
+        "w": 16,
+        "h": 7
+      },
+      "interval": "1m",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A",
+          "expr": "round(sum(increase(ping_rtt_snt_count{name=~\"$target-icmp\"}[1m])) - sum(increase(ping_rtt_snt_fail_count{name=~\"$target-icmp\"}[1m])))",
+          "legendFormat": "Mottagna"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "B",
+          "expr": "round(sum(increase(ping_rtt_snt_fail_count{name=~\"$target-icmp\"}[1m])))",
+          "legendFormat": "Tappade"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "min": 0,
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 70,
+            "lineWidth": 1,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Mottagna"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Tappade"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": [
+            "sum"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
       "type": "timeseries",
       "title": "Antal hopp – $target (ändras när vägen byts)",
       "id": 7,
@@ -567,7 +821,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 26,
+        "y": 33,
         "w": 24,
         "h": 5
       },
