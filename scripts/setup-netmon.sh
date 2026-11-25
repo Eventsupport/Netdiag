@@ -333,7 +333,7 @@ mk_timer netdiag-cleanup "/usr/local/bin/netdiag-cleanup"     "*-*-* 03:30:00"
 echo "==> Startar tjänster"
 systemctl daemon-reload
 systemctl enable --now network_exporter prometheus grafana-server
-systemctl restart prometheus grafana-server
+systemctl restart network_exporter prometheus grafana-server
 systemctl enable --now netdiag-ping.timer netdiag-mtr.timer netdiag-cleanup.timer
 
 ip4=$(hostname -I | awk '{print $1}')
