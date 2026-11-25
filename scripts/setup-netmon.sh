@@ -140,13 +140,34 @@ apt-get install -y grafana
 install -d /etc/grafana/provisioning/datasources
 cat > /etc/grafana/provisioning/datasources/prometheus.yaml <<'EOF'
 apiVersion: 1
+deleteDatasources:
+  - name: Prometheus
+    orgId: 1
 datasources:
   - name: Prometheus
+    uid: prometheus
     type: prometheus
     access: proxy
     url: http://localhost:9090
     isDefault: true
 EOF
+
+# Dashboards: JSON-filer som bootstrap lagt i /root/netdiag-dashboards
+install -d /etc/grafana/provisioning/dashboards /var/lib/grafana/dashboards
+cat > /etc/grafana/provisioning/dashboards/netdiag.yaml <<'EOF'
+apiVersion: 1
+providers:
+  - name: netdiag
+    folder: netdiag
+    type: file
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards
+EOF
+if compgen -G "/root/netdiag-dashboards/*.json" >/dev/null; then
+  cp /root/netdiag-dashboards/*.json /var/lib/grafana/dashboards/
+fi
+chown -R grafana:grafana /var/lib/grafana/dashboards 2>/dev/null || true
 
 # -----------------------------------------------------------------------------
 echo "==> Installerar netdiag-skript"
@@ -312,7 +333,7 @@ mk_timer netdiag-cleanup "/usr/local/bin/netdiag-cleanup"     "*-*-* 03:30:00"
 echo "==> Startar tjänster"
 systemctl daemon-reload
 systemctl enable --now network_exporter prometheus grafana-server
-systemctl restart prometheus
+systemctl restart prometheus grafana-server
 systemctl enable --now netdiag-ping.timer netdiag-mtr.timer netdiag-cleanup.timer
 
 ip4=$(hostname -I | awk '{print $1}')

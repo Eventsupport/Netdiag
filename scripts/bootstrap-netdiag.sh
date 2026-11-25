@@ -91,6 +91,10 @@ systemctl disable --now rpcbind.service rpcbind.socket 2>/dev/null || true
 cat > /etc/sysctl.d/99-netdiag.conf <<'EOF'
 net.ipv4.ip_forward = 1
 net.ipv6.conf.all.forwarding = 1
+# Ingen gräns för ICMP-felsvar (time-exceeded) från värden. Annars ser
+# hopp 1 i MTR ut att tappa paket, vilket ger missvisande underlag.
+net.ipv4.icmp_ratelimit = 0
+net.ipv6.icmp.ratelimit = 0
 EOF
 sysctl --system >/dev/null
 
@@ -158,6 +162,10 @@ fi
 
 step "Installerar netmon-tjänsterna"
 pct push "$NETMON_ID" "$HERE/setup-netmon.sh" /root/setup-netmon.sh
+pct exec "$NETMON_ID" -- mkdir -p /root/netdiag-dashboards
+for d in "$HERE"/../grafana/*.json; do
+  [[ -f "$d" ]] && pct push "$NETMON_ID" "$d" "/root/netdiag-dashboards/$(basename "$d")"
+done
 pct exec "$NETMON_ID" -- env SITE_NAME="$SITE_NAME" EXTRA_TARGETS="$EXTRA_TARGETS" \
   bash /root/setup-netmon.sh
 
