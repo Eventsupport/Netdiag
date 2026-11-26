@@ -16,6 +16,7 @@
 #   LAN_PREFIX=172.30          internt nät blir LAN_PREFIX.BOX_ID.0/24
 #   NETMON_ID / KUMA_ID        container-ID (standard 90<N>20 / 90<N>10)
 #   SPEEDTEST_SCHEDULE=3h      hastighetstest: off | hourly (standard) | <N>h
+#   NETMON_MEMORY=2048         RAM i MB för netmon (standard 2048, lätt att öka i Proxmox)
 #
 # Steg: repos -> uppdatering -> vmbr1 -> Tailscale -> LXC:er -> brandvägg
 #       -> vmbr0 till DHCP (gäller från nästa omstart)
@@ -42,6 +43,9 @@ LAN_IP="$LAN_PREFIX.$BOX_ID.1"; LAN_NET="$LAN_PREFIX.$BOX_ID.0/24"
 NETMON_ID="${NETMON_ID:-$(pct list | awk 'NR>1 && $NF ~ /^netmon(-|$)/ {print $1; exit}')}"
 NETMON_ID="${NETMON_ID:-90${BOX_ID}20}"; NETMON_IP="$LAN_PREFIX.$BOX_ID.20"
 KUMA_ID="${KUMA_ID:-90${BOX_ID}10}";    KUMA_IP="$LAN_PREFIX.$BOX_ID.10"
+# Hellre för lite än för mycket: ett höjt värde är enkelt att ändra i Proxmox,
+# men en container som tar slut på värdens minne kan fälla hela PVE.
+NETMON_MEMORY="${NETMON_MEMORY:-2048}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 
 [[ $EUID -eq 0 ]] || { echo "Kör som root." >&2; exit 1; }
@@ -160,7 +164,7 @@ if ! pct status "$NETMON_ID" >/dev/null 2>&1; then
   [[ -n "$tmpl" ]] || { echo "Hittar ingen Debian 13-mall." >&2; exit 1; }
   pveam list local | grep -q "$tmpl" || pveam download local "$tmpl"
   pct create "$NETMON_ID" "local:vztmpl/$tmpl" \
-    --hostname "netmon-$(hostname -s)" --cores 2 --memory 3072 --swap 512 \
+    --hostname "netmon-$(hostname -s)" --cores 2 --memory "$NETMON_MEMORY" --swap 512 \
     --rootfs "$storage:32" --unprivileged 1 --features nesting=1 \
     --net0 "name=eth0,bridge=$LAN,ip=$NETMON_IP/24,gw=$LAN_IP" \
     --nameserver "1.1.1.1 9.9.9.9" --onboot 1

@@ -117,6 +117,7 @@ Boxen tar alltid IP via DHCP på `vmbr0`, både direkt mot internet och på kund
 | `WAN_DHCP` | `1` | `0` = behåll statisk IP på vmbr0 |
 | `BOX_ID` | siffran i värdnamnet | Boxnummer N, avgör det interna nätet |
 | `LAN_PREFIX` | `172.30` | Internt nät blir `LAN_PREFIX.N.0/24` |
+| `NETMON_MEMORY` | `2048` | RAM i MB för netmon-containern. Gäller när containern skapas. Öka i Proxmox vid behov (`pct set 90N20 --memory 3072`) |
 
 Skriptet kan köras flera gånger. Steg som redan är gjorda hoppas över.
 
