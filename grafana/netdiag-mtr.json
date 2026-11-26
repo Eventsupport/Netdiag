@@ -96,7 +96,7 @@
             "uid": "prometheus"
           },
           "refId": "A",
-          "expr": "netdiag_speedtest_download_mbps and on() (changes(netdiag_speedtest_timestamp_seconds[$__interval]) > 0)",
+          "expr": "netdiag_speedtest_download_mbps and on() ((netdiag_speedtest_timestamp_seconds != netdiag_speedtest_timestamp_seconds offset $__interval) or ((netdiag_speedtest_timestamp_seconds unless netdiag_speedtest_timestamp_seconds offset $__interval) > time() - ${__interval_ms} / 1000 - 900))",
           "legendFormat": "Nedladdning"
         },
         {
@@ -105,7 +105,7 @@
             "uid": "prometheus"
           },
           "refId": "B",
-          "expr": "netdiag_speedtest_upload_mbps and on() (changes(netdiag_speedtest_timestamp_seconds[$__interval]) > 0)",
+          "expr": "netdiag_speedtest_upload_mbps and on() ((netdiag_speedtest_timestamp_seconds != netdiag_speedtest_timestamp_seconds offset $__interval) or ((netdiag_speedtest_timestamp_seconds unless netdiag_speedtest_timestamp_seconds offset $__interval) > time() - ${__interval_ms} / 1000 - 900))",
           "legendFormat": "Uppladdning"
         },
         {
@@ -114,7 +114,7 @@
             "uid": "prometheus"
           },
           "refId": "C",
-          "expr": "netdiag_speedtest_latency_ms and on() (changes(netdiag_speedtest_timestamp_seconds[$__interval]) > 0)",
+          "expr": "netdiag_speedtest_latency_ms and on() ((netdiag_speedtest_timestamp_seconds != netdiag_speedtest_timestamp_seconds offset $__interval) or ((netdiag_speedtest_timestamp_seconds unless netdiag_speedtest_timestamp_seconds offset $__interval) > time() - ${__interval_ms} / 1000 - 900))",
           "legendFormat": "Latens"
         }
       ],
@@ -1222,7 +1222,7 @@
         },
         "enable": true,
         "iconColor": "purple",
-        "expr": "changes(netdiag_speedtest_timestamp_seconds[2m]) > 0",
+        "expr": "(netdiag_speedtest_timestamp_seconds != netdiag_speedtest_timestamp_seconds offset 1m) or ((netdiag_speedtest_timestamp_seconds unless netdiag_speedtest_timestamp_seconds offset 1m) > time() - 60000 / 1000 - 900)",
         "step": "60s",
         "titleFormat": "Hastighetstest",
         "textFormat": "Linjen fullt belastad ca 20 s – högre latens är väntat"
