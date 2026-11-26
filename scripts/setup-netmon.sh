@@ -206,7 +206,9 @@ cat > /usr/local/bin/netdiag-pingcheck <<'EOF'
 set -uo pipefail
 . /etc/netdiag.conf
 log="$DATA/ping.csv"
-[[ -f "$log" ]] || echo "epoch,tid,mal,skickade,mottagna,forlust_pct,min_ms,avg_ms,max_ms" > "$log"
+hdr="epoch,tid,mal,skickade,mottagna,forlust_pct,min_ms,avg_ms,max_ms"
+if [[ ! -s "$log" ]]; then echo "$hdr" > "$log"
+elif [[ "$(head -n1 "$log")" != "$hdr" ]]; then sed -i "1i $hdr" "$log"; fi
 for t in $TARGETS; do
   epoch=$(date +%s); now=$(date -d "@$epoch" -Iseconds)   # tid när just detta mål pingas
   out=$(ping -4 -n -q -c 20 -i 0.2 -W 1 "$t" 2>&1)
@@ -268,8 +270,9 @@ name="netdiag_${SITE_NAME//[^a-zA-Z0-9]/_}_$(date -d "@$from" +%Y%m%d-%H%M)_$(da
 work=$(mktemp -d); out="$work/$name"; mkdir -p "$out/mtr"
 trap 'rm -rf "$work"' EXIT
 
-head -n1 "$DATA/ping.csv" > "$out/ping.csv"
-awk -F, -v f="$from" -v t="$to" 'NR>1 && $1>=f && $1<=t' "$DATA/ping.csv" >> "$out/ping.csv"
+echo "epoch,tid,mal,skickade,mottagna,forlust_pct,min_ms,avg_ms,max_ms" > "$out/ping.csv"
+touch "$DATA/ping.csv"
+awk -F, -v f="$from" -v t="$to" '$1 ~ /^[0-9]+$/ && $1>=f && $1<=t' "$DATA/ping.csv" >> "$out/ping.csv"
 
 find "$DATA/reports" -type f -name '*.txt' -newermt "$1" ! -newermt "$2" -exec cp {} "$out/mtr/" \;
 
@@ -450,7 +453,9 @@ cat > /usr/local/bin/netdiag-reset <<'EOF'
 set -euo pipefail
 . /etc/netdiag.conf
 echo "==> Stoppar mätningar"
-systemctl stop netdiag-ping.timer netdiag-mtr.timer prometheus
+systemctl stop netdiag-ping.timer netdiag-mtr.timer
+systemctl stop netdiag-ping.service netdiag-mtr.service 2>/dev/null || true   # vänta in pågående körning
+systemctl stop prometheus
 systemctl stop 'netdiag-pingwatch@*' 2>/dev/null || true
 echo "==> Raderar data"
 for d in /var/lib/prometheus/metrics2 /var/lib/prometheus/data; do
@@ -484,7 +489,7 @@ find "$DATA/reports" -mindepth 1 -mtime +"$RETENTION_DAYS" -delete
 find "$DATA/export" -type f -mtime +"$RETENTION_DAYS" -delete
 if [[ -f "$DATA/ping.csv" ]]; then
   cut=$(( $(date +%s) - RETENTION_DAYS*86400 ))
-  awk -F, -v c="$cut" 'NR==1 || $1>=c' "$DATA/ping.csv" > "$DATA/ping.csv.tmp" && mv "$DATA/ping.csv.tmp" "$DATA/ping.csv"
+  awk -F, -v c="$cut" '$1 !~ /^[0-9]+$/ || $1>=c' "$DATA/ping.csv" > "$DATA/ping.csv.tmp" && mv "$DATA/ping.csv.tmp" "$DATA/ping.csv"
 fi
 if [[ -f "$DATA/events.log" ]]; then
   c=$(date -d "-$RETENTION_DAYS days" '+%F %T')
