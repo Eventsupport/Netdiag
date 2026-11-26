@@ -160,7 +160,8 @@ Webbsidan nås bara internt och via Tailscale. Allt annat stoppas av brandvägge
 
 Zip-filen innehåller:
 
-- `SAMMANFATTNING.txt`: alla avbrott, förlust och latens per mål, samt de minuter som hade förlust.
+- `SAMMANFATTNING.txt`: paketförlust (samma data som Grafana), avbrott, pingkontroller, hastighetstest och tolkning.
+- `hastighet.csv`: hastighetstesterna under perioden.
 - `avbrott.log`: pingvaktens logg för perioden.
 - Alla MTR-rapporter från perioden.
 - Pingloggen.
@@ -194,6 +195,20 @@ cd /root/netdiag && git pull
 SITE_NAME="Kund AB Ort" TARGETS="<kundens router> <första hopp> 1.1.1.1 8.8.8.8 9.9.9.9 ping.sunet.se teliaplay.se" bash scripts/new-site.sh
 ```
 
+### Hastighetstest (Bredbandskollen)
+
+Boxen mäter hastigheten mot Bredbandskollen **varje timme kl. xx:30**, med Bredbandskollen CLI (MIT-licens). Det är samma servrar som webbtjänsten använder, och det mått som svenska operatörer känner igen.
+
+- Varje test belastar linjen fullt i cirka 20 sekunder och förbrukar data, ungefär 1–2 GB per test på en 500/500-linje. Informera kunden.
+- Under testet stoppas den automatiska incident-MTR:en. Pingvaktens avbrott märks med *(under hastighetstest)*.
+- Testerna syns som lila markeringar i alla grafer. Högre latens just då är väntat.
+- Resultaten syns överst i Grafana, i `/var/lib/netdiag/speedtest.csv` och i del D av felanmälningspaketet, med Support-ID.
+
+```
+netmon netdiag-speedtest                               # kör ett test nu
+SPEEDTEST_SCHEDULE=3h bash scripts/update-netmon.sh    # var 3:e timme (hourly | 3h | off)
+```
+
 ### Byta mätmål
 
 Listan ersätts helt med de mål du anger. Både IP-adresser och värdnamn fungerar.
@@ -216,6 +231,7 @@ Grafana: mappen **netdiag** → **netdiag – MTR per hopp**. Där finns en sekt
 - slutmålets latens och förlust
 - latens per hopp och förlust per hopp över tid
 - antal skickade, mottagna och tappade paket för perioden, och per minut
+- hastighetstest (ned, upp, latens) överst, och markeringar för testerna i alla grafer
 - antal hopp, som visar när vägen byts
 
 ## Filer

@@ -25,7 +25,7 @@ cat <<EOF
   Mål:       ${TARGETS:-(oförändrade)}
 
   Detta RADERAR all mätdata från "${old_site:-nuvarande plats}":
-  grafer, pinglogg, avbrottslogg, MTR-rapporter och felanmälningspaket.
+  grafer, pinglogg, avbrottslogg, hastighetstest, MTR-rapporter och felanmälningspaket.
 
   Spara först det du vill behålla, t.ex.:
     netdiag-export "$(date -d '-7 days' +%F) 00:00" "$(date +%F) 23:59"
@@ -36,6 +36,7 @@ read -r -p "Skriv RADERA för att fortsätta: " ans
 
 export SITE_NAME
 [[ -n "${TARGETS:-}" ]] && export TARGETS
+[[ -n "${SPEEDTEST_SCHEDULE:-}" ]] && export SPEEDTEST_SCHEDULE
 NETMON_ID="$id" bash "$HERE/update-netmon.sh"
 
 echo

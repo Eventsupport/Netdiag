@@ -15,6 +15,7 @@
 #   BOX_ID=3                   boxnummer (standard: siffran i värdnamnet)
 #   LAN_PREFIX=172.30          internt nät blir LAN_PREFIX.BOX_ID.0/24
 #   NETMON_ID / KUMA_ID        container-ID (standard 90<N>20 / 90<N>10)
+#   SPEEDTEST_SCHEDULE=3h      hastighetstest: off | hourly (standard) | <N>h
 #
 # Steg: repos -> uppdatering -> vmbr1 -> Tailscale -> LXC:er -> brandvägg
 #       -> vmbr0 till DHCP (gäller från nästa omstart)
@@ -178,6 +179,7 @@ install -m 0755 "$HERE/netdiag-export.sh" /usr/local/bin/netdiag-export
 install -m 0755 "$HERE/netmon.sh" /usr/local/bin/netmon
 TZ_NAME="$(timedatectl show -p Timezone --value 2>/dev/null || echo Europe/Stockholm)"
 tgt_env=(); [[ -n "${TARGETS:-}" ]] && tgt_env=(TARGETS="$TARGETS")
+[[ -n "${SPEEDTEST_SCHEDULE:-}" ]] && tgt_env+=(SPEEDTEST_SCHEDULE="$SPEEDTEST_SCHEDULE")
 pct exec "$NETMON_ID" -- env PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin LANG=C.UTF-8 LC_ALL=C.UTF-8 NETMON_ID="$NETMON_ID" TZ_NAME="$TZ_NAME" SITE_NAME="$SITE_NAME" "${tgt_env[@]}" EXTRA_TARGETS="$EXTRA_TARGETS" \
   bash /root/setup-netmon.sh
 

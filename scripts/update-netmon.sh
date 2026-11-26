@@ -9,6 +9,8 @@
 #   TARGETS="192.168.1.1 100.67.232.1 1.1.1.1 8.8.8.8 dns.google" bash scripts/update-netmon.sh
 # Byta platsnamn:
 #   SITE_NAME="Kund AB Ort" bash scripts/update-netmon.sh
+# Hastighetstest (off | hourly | 3h | OnCalendar):
+#   SPEEDTEST_SCHEDULE=3h bash scripts/update-netmon.sh
 #
 # - Kör om setup-netmon.sh i netmon-LXC:n med befintliga mätmål/platsnamn
 # - Installerar/uppdaterar Grafana-dashboards från grafana/
@@ -35,6 +37,7 @@ echo "==> Läser befintlig konfiguration från CT $NETMON_ID"
 conf="$(pct exec "$NETMON_ID" -- cat /etc/netdiag.conf)"
 site="${SITE_NAME:-$(sed -nE 's/^SITE_NAME="(.*)"$/\1/p' <<<"$conf")}"
 targets="${TARGETS:-$(sed -nE 's/^TARGETS="(.*)"$/\1/p' <<<"$conf")}"
+speed="${SPEEDTEST_SCHEDULE:-$(sed -nE 's/^SPEEDTEST_SCHEDULE="(.*)"$/\1/p' <<<"$conf")}"
 echo "   Plats: $site"
 echo "   Mål:   $targets"
 
@@ -50,5 +53,5 @@ install -m 0755 "$HERE/netmon.sh" /usr/local/bin/netmon
 TZ_NAME="$(timedatectl show -p Timezone --value 2>/dev/null || echo Europe/Stockholm)"
 
 echo "==> Kör setup-netmon.sh"
-pct exec "$NETMON_ID" -- env PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin LANG=C.UTF-8 LC_ALL=C.UTF-8 NETMON_ID="$NETMON_ID" TZ_NAME="$TZ_NAME" SITE_NAME="$site" TARGETS="$targets" EXTRA_TARGETS="" \
+pct exec "$NETMON_ID" -- env PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin LANG=C.UTF-8 LC_ALL=C.UTF-8 NETMON_ID="$NETMON_ID" TZ_NAME="$TZ_NAME" SITE_NAME="$site" TARGETS="$targets" EXTRA_TARGETS="" SPEEDTEST_SCHEDULE="${speed:-hourly}" \
   bash /root/setup-netmon.sh

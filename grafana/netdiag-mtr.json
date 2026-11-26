@@ -63,12 +63,342 @@
     },
     {
       "type": "row",
+      "id": 20,
+      "title": "Hastighet mot internet (Bredbandskollen)",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 3,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "id": 21,
+      "title": "Hastighetstest – nedladdning, uppladdning och latens",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 16,
+        "h": 8
+      },
+      "interval": "2m",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A",
+          "expr": "netdiag_speedtest_download_mbps and on() (changes(netdiag_speedtest_timestamp_seconds[$__interval]) > 0)",
+          "legendFormat": "Nedladdning"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "B",
+          "expr": "netdiag_speedtest_upload_mbps and on() (changes(netdiag_speedtest_timestamp_seconds[$__interval]) > 0)",
+          "legendFormat": "Uppladdning"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "C",
+          "expr": "netdiag_speedtest_latency_ms and on() (changes(netdiag_speedtest_timestamp_seconds[$__interval]) > 0)",
+          "legendFormat": "Latens"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Mbits",
+          "min": 0,
+          "decimals": 1,
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "showPoints": "always",
+            "pointSize": 7,
+            "spanNulls": true,
+            "fillOpacity": 0
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Nedladdning"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Uppladdning"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Latens"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    4,
+                    4
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "min",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "id": 22,
+      "title": "Senaste hastighetstest",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 4,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A",
+          "expr": "netdiag_speedtest_download_mbps",
+          "legendFormat": "Ned",
+          "instant": true,
+          "range": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "B",
+          "expr": "netdiag_speedtest_upload_mbps",
+          "legendFormat": "Upp",
+          "instant": true,
+          "range": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "C",
+          "expr": "netdiag_speedtest_latency_ms",
+          "legendFormat": "Latens",
+          "instant": true,
+          "range": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "D",
+          "expr": "netdiag_speedtest_timestamp_seconds * 1000",
+          "legendFormat": "Testat",
+          "instant": true,
+          "range": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "E",
+          "expr": "netdiag_speedtest_ok",
+          "legendFormat": "Status",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Mbits",
+          "decimals": 1,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Latens"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Testat"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeFromNow"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Status"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "1": {
+                        "text": "OK",
+                        "color": "green"
+                      },
+                      "0": {
+                        "text": "Fel",
+                        "color": "red"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "thresholds"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "green",
+                      "value": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "textMode": "value_and_name",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "type": "row",
       "title": "Mål: $target",
       "repeat": "target",
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 3,
+        "y": 12,
         "w": 24,
         "h": 1
       },
@@ -85,7 +415,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 4,
+        "y": 13,
         "w": 12,
         "h": 12
       },
@@ -336,7 +666,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 4,
+        "y": 13,
         "w": 12,
         "h": 12
       },
@@ -461,7 +791,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 16,
+        "y": 25,
         "w": 12,
         "h": 10
       },
@@ -514,7 +844,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 16,
+        "y": 25,
         "w": 12,
         "h": 10
       },
@@ -567,7 +897,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 26,
+        "y": 35,
         "w": 8,
         "h": 7
       },
@@ -726,7 +1056,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 26,
+        "y": 35,
         "w": 16,
         "h": 7
       },
@@ -821,7 +1151,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 33,
+        "y": 42,
         "w": 24,
         "h": 5
       },
@@ -881,5 +1211,22 @@
       "targetBlank": false,
       "keepTime": true
     }
-  ]
+  ],
+  "annotations": {
+    "list": [
+      {
+        "name": "Hastighetstest",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "enable": true,
+        "iconColor": "purple",
+        "expr": "changes(netdiag_speedtest_timestamp_seconds[2m]) > 0",
+        "step": "60s",
+        "titleFormat": "Hastighetstest",
+        "textFormat": "Linjen fullt belastad ca 20 s – högre latens är väntat"
+      }
+    ]
+  }
 }

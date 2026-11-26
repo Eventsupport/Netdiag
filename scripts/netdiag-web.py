@@ -88,6 +88,34 @@ def hop_metrics():
     return "\n".join(out) + "\n"
 
 
+# --- Hastighetstest (senaste resultat) ----------------------------------------
+def speed_metrics():
+    last = None
+    try:
+        with open(os.path.join(DATA, "speedtest.csv"), encoding="utf-8") as f:
+            for line in f:
+                parts = line.rstrip("\n").split(",")
+                if len(parts) >= 8 and parts[0].isdigit():
+                    last = parts
+    except OSError:
+        return ""
+    if not last:
+        return ""
+    out = ["# HELP netdiag_speedtest_timestamp_seconds Tid för senaste hastighetstest.",
+           "# TYPE netdiag_speedtest_timestamp_seconds gauge",
+           f"netdiag_speedtest_timestamp_seconds {int(last[0])}",
+           "# TYPE netdiag_speedtest_ok gauge",
+           f"netdiag_speedtest_ok {1 if last[7] == 'ok' else 0}"]
+    for col, name in ((2, "latency_ms"), (3, "download_mbps"), (4, "upload_mbps")):
+        try:
+            v = float(last[col])
+        except ValueError:
+            continue
+        if v > 0:
+            out += [f"# TYPE netdiag_speedtest_{name} gauge", f"netdiag_speedtest_{name} {v}"]
+    return "\n".join(out) + "\n"
+
+
 def parse_time(v):
     v = (v or "").strip()
     if re.fullmatch(r"\d{12,14}", v):                      # ms från Grafana
@@ -157,7 +185,7 @@ class Handler(BaseHTTPRequestHandler):
                     return self.send_zip(path)
                 return self.page("<p class='err'>Filen finns inte.</p>", 404)
             if u.path == "/metrics":
-                return self.send(200, hop_metrics(), "text/plain; version=0.0.4; charset=utf-8")
+                return self.send(200, hop_metrics() + speed_metrics(), "text/plain; version=0.0.4; charset=utf-8")
             if u.path == "/events":
                 return self.send(200, "".join(tail(EVENTS, 100000)) or "Inga avbrott loggade.\n",
                                  "text/plain; charset=utf-8")

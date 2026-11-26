@@ -22,6 +22,14 @@ LOSS_THRESHOLD="${LOSS_THRESHOLD:-5}"   # % förlust som utlöser en incident-MT
 MTR_COUNT="${MTR_COUNT:-100}"
 MTR_INTERVAL="${MTR_INTERVAL:-0.5}"
 DATA="/var/lib/netdiag"
+# Hastighetstest mot Bredbandskollen: off | hourly | <N>h (var N:e timme) | OnCalendar-uttryck
+SPEEDTEST_SCHEDULE="${SPEEDTEST_SCHEDULE:-hourly}"
+case "$SPEEDTEST_SCHEDULE" in
+  off)     SPEEDTEST_CAL="" ;;
+  hourly)  SPEEDTEST_CAL="*-*-* *:30:00" ;;
+  [0-9]*h) SPEEDTEST_CAL="*-*-* 00/${SPEEDTEST_SCHEDULE%h}:30:00" ;;
+  *)       SPEEDTEST_CAL="$SPEEDTEST_SCHEDULE" ;;
+esac
 
 [[ $EUID -eq 0 ]] || { echo "Kör skriptet som root." >&2; exit 1; }
 
@@ -198,6 +206,60 @@ LOSS_THRESHOLD=${LOSS_THRESHOLD}
 MTR_COUNT=${MTR_COUNT}
 MTR_INTERVAL=${MTR_INTERVAL}
 DATA="${DATA}"
+SPEEDTEST_SCHEDULE="${SPEEDTEST_SCHEDULE}"
+EOF
+
+# --- Bredbandskollen CLI --------------------------------------------------------
+is_elf() { [[ "$(head -c4 "$1" 2>/dev/null | od -An -tx1 | tr -d ' \n')" == 7f454c46 ]]; }
+install_bbk() {
+  is_elf /usr/local/bin/bbk_cli && return 0
+  local fa ga u tmp; tmp="$(mktemp)"
+  case "$(dpkg --print-architecture)" in
+    amd64) fa=amd64;   ga='(x86_64|amd64)';;
+    arm64) fa=aarch64; ga='(aarch64|arm64)';;
+    *) echo "   bbk_cli: okänd arkitektur" >&2; return 1;;
+  esac
+  for u in $(curl -fsSL https://api.github.com/repos/dotse/bbk/releases/latest 2>/dev/null \
+               | jq -r '.assets[]?.browser_download_url' 2>/dev/null | grep -i linux | grep -iE "$ga" || true) \
+           "https://frontend.bredbandskollen.se/download/bbk_cli_linux_${fa}-1.0"; do
+    if curl -fsSL "$u" -o "$tmp" && is_elf "$tmp"; then
+      install -m 0755 "$tmp" /usr/local/bin/bbk_cli; rm -f "$tmp"
+      echo "   bbk_cli hämtad från $u"; return 0
+    fi
+  done
+  rm -f "$tmp"; echo "   VARNING: kunde inte hämta bbk_cli – hastighetstest avstängt." >&2; return 1
+}
+echo "==> Bredbandskollen CLI"
+BBK_OK=0; install_bbk && BBK_OK=1
+# Bredbandskollen ska inte köras som root
+id netdiag >/dev/null 2>&1 || useradd --system --home-dir "$DATA/bbk" --create-home --shell /usr/sbin/nologin netdiag
+install -d -o netdiag -g netdiag "$DATA/bbk"
+
+cat > /usr/local/bin/netdiag-speedtest <<'EOF'
+#!/usr/bin/env bash
+# Hastighetstest mot Bredbandskollen. Körs av netdiag-speedtest.timer eller för hand.
+set -uo pipefail
+. /etc/netdiag.conf
+csv="$DATA/speedtest.csv"
+hdr="epoch,tid,latens_ms,ned_mbps,upp_mbps,support_id,bedomning,status"
+if [[ ! -s "$csv" ]]; then echo "$hdr" > "$csv"
+elif [[ "$(head -n1 "$csv")" != "$hdr" ]]; then sed -i "1i $hdr" "$csv"; fi
+exec 9>/run/netdiag-speedtest.lock
+flock -n 9 || { echo "Ett hastighetstest pågår redan."; exit 0; }
+touch /run/netdiag-speedtest.active
+trap 'rm -f /run/netdiag-speedtest.active' EXIT
+epoch=$(date +%s); now=$(date -d "@$epoch" -Iseconds)
+out=$(timeout 180 runuser -u netdiag -- env HOME="$DATA/bbk" /usr/local/bin/bbk_cli --quiet 2>&1 | tail -n1)
+read -r lat down up sid bed _ <<<"$out"
+num='^-?[0-9]+([.][0-9]+)?$'
+if [[ "${lat:-}" =~ $num && "${down:-}" =~ $num && "${up:-}" =~ $num ]]; then
+  status=ok
+  awk -v d="$down" -v u="$up" 'BEGIN { exit !(d <= 0 || u <= 0) }' && status=delvis
+else
+  status="fel: $(tr ',\n' '; ' <<<"${out:0:200}")"; lat=""; down=""; up=""; sid=""; bed=""
+fi
+echo "$epoch,$now,$lat,$down,$up,${sid:-},${bed:-},$status" >> "$csv"
+printf "Latens %s ms, ned %s Mbit/s, upp %s Mbit/s (%s)\n" "${lat:--}" "${down:--}" "${up:--}" "$status"
 EOF
 
 # --- Minutlig pingkontroll -> CSV, startar incident-MTR vid förlust ----------
@@ -219,7 +281,7 @@ for t in $TARGETS; do
   mn=""; av=""; mx=""
   read -r mn av mx < <(sed -nE 's#^rtt min/avg/max/mdev = ([0-9.]+)/([0-9.]+)/([0-9.]+)/.*#\1 \2 \3#p' <<<"$out") || true
   echo "$epoch,$now,$t,$sent,$recv,$loss,$mn,$av,$mx" >> "$log"
-  if (( loss >= LOSS_THRESHOLD )); then
+  if (( loss >= LOSS_THRESHOLD )) && [[ ! -e /run/netdiag-speedtest.active ]]; then
     systemd-run --quiet --no-block --collect \
       --unit "netdiag-incident-${epoch}-${t//[^a-zA-Z0-9]/_}" \
       /usr/local/bin/netdiag-mtr incident "$t" >/dev/null 2>&1 || true
@@ -361,6 +423,23 @@ loss_min=$(prom_range "round(sum by (name) (increase(${FAIL}[${step}s])))" | sor
     echo "  Ingen förlust under perioden."
   fi
   echo
+  echo "D. HASTIGHETSTEST (Bredbandskollen)"
+  touch "$DATA/speedtest.csv"
+  echo "epoch,tid,latens_ms,ned_mbps,upp_mbps,support_id,bedomning,status" > "$out/hastighet.csv"
+  awk -F, -v f="$from" -v t="$to" '$1 ~ /^[0-9]+$/ && $1>=f && $1<=t' "$DATA/speedtest.csv" >> "$out/hastighet.csv"
+  if awk 'NR>1 { found=1 } END { exit !found }' "$out/hastighet.csv"; then
+    printf "  %-19s %8s %10s %10s  %-12s %s\n" "Tid" "Latens" "Ned Mbit/s" "Upp Mbit/s" "Support-ID" "Status"
+    awk -F, 'NR>1 {
+        tid=$2; sub(/T/, " ", tid); sub(/[+-][0-9][0-9]:[0-9][0-9]$/, "", tid)
+        printf "  %-19s %8s %10s %10s  %-12s %s%s\n", tid, ($3==""?"-":$3" ms"), ($4==""?"-":$4), ($5==""?"-":$5), $6, $8, ($7==""?"":" ("$7")") }' \
+      "$out/hastighet.csv" | head -n 500
+    awk -F, 'NR>1 && $8=="ok" { n++; d+=$4; u+=$5; if (mn=="" || $4<mn) mn=$4 }
+             END { if (n) printf "  Snitt %d test: ned %.1f Mbit/s, upp %.1f Mbit/s. Lägsta ned: %.1f Mbit/s\n", n, d/n, u/n, mn }' \
+      "$out/hastighet.csv"
+  else
+    echo "  Inga hastighetstest under perioden."
+  fi
+  echo
   echo "MTR-RAPPORTER I PAKETET: $(ls "$out/mtr" | wc -l) st (katalogen mtr/)"
   echo
   echo "TOLKNING"
@@ -368,6 +447,8 @@ loss_min=$(prom_range "round(sum by (name) (increase(${FAIL}[${step}s])))" | sor
   echo "  beror normalt på att routern begränsar ICMP-svar och är inget fel."
   echo "  Förlust som syns från ett visst hopp och hela vägen till målet visar"
   echo "  var problemet börjar."
+  echo "  Under ett hastighetstest (se D) är linjen fullt belastad i ca 20 s. Högre"
+  echo "  latens och enstaka tappade paket just då är väntat och inget fel."
 } > "$out/SAMMANFATTNING.txt"
 
 (cd "$work" && zip -qr "$DATA/export/$name.zip" "$name")
@@ -390,13 +471,14 @@ ping -4 -n -D -O -i 1 -W 1 "$t" 2>&1 | gawk -v t="$t" -v logf="$log" '
     e = substr($1, 2, length($1) - 2) + 0
     if ($0 ~ /no answer yet|[Uu]nreachable|sendmsg/) {
       if (!down) { down = 1; start = e; n = 0
-        out(sprintf("%s  %-18s  INGET SVAR", ts(e), t)) }
+        st = (system("test -e /run/netdiag-speedtest.active") == 0) ? "  (under hastighetstest)" : ""
+        out(sprintf("%s  %-18s  INGET SVAR%s", ts(e), t, st)) }
       n++; next
     }
     if ($0 ~ /bytes from/) {
       if (down) {
-        out(sprintf("%s  %-18s  SVARAR IGEN  avbrott %s – %s, %d paket utan svar (ca %d s)",
-                    ts(e), t, ts(start), ts(e), n, n))
+        out(sprintf("%s  %-18s  SVARAR IGEN  avbrott %s – %s, %d paket utan svar (ca %d s)%s",
+                    ts(e), t, ts(start), ts(e), n, n, st))
         down = 0
       }
       next
@@ -461,7 +543,7 @@ echo "==> Raderar data"
 for d in /var/lib/prometheus/metrics2 /var/lib/prometheus/data; do
   [[ -d "$d" ]] && find "$d" -mindepth 1 -delete
 done
-rm -f "$DATA/ping.csv" "$DATA/events.log"
+rm -f "$DATA/ping.csv" "$DATA/events.log" "$DATA/speedtest.csv"
 find "$DATA/reports" "$DATA/export" -mindepth 1 -delete 2>/dev/null || true
 echo "==> Startar mätningar"
 systemctl start prometheus netdiag-ping.timer netdiag-mtr.timer
@@ -487,9 +569,12 @@ set -uo pipefail
 . /etc/netdiag.conf
 find "$DATA/reports" -mindepth 1 -mtime +"$RETENTION_DAYS" -delete
 find "$DATA/export" -type f -mtime +"$RETENTION_DAYS" -delete
+cut=$(( $(date +%s) - RETENTION_DAYS*86400 ))
 if [[ -f "$DATA/ping.csv" ]]; then
-  cut=$(( $(date +%s) - RETENTION_DAYS*86400 ))
   awk -F, -v c="$cut" '$1 !~ /^[0-9]+$/ || $1>=c' "$DATA/ping.csv" > "$DATA/ping.csv.tmp" && mv "$DATA/ping.csv.tmp" "$DATA/ping.csv"
+fi
+if [[ -f "$DATA/speedtest.csv" ]]; then
+  awk -F, -v c="$cut" '$1 !~ /^[0-9]+$/ || $1>=c' "$DATA/speedtest.csv" > "$DATA/speedtest.csv.tmp" && mv "$DATA/speedtest.csv.tmp" "$DATA/speedtest.csv"
 fi
 if [[ -f "$DATA/events.log" ]]; then
   c=$(date -d "-$RETENTION_DAYS days" '+%F %T')
@@ -523,6 +608,9 @@ EOF
 mk_timer netdiag-ping    "/usr/local/bin/netdiag-pingcheck"   "*-*-* *:*:00"
 mk_timer netdiag-mtr     "/usr/local/bin/netdiag-mtr hourly"  "*-*-* *:05:00"
 mk_timer netdiag-cleanup "/usr/local/bin/netdiag-cleanup"     "*-*-* 03:30:00"
+if [[ -n "$SPEEDTEST_CAL" && "$BBK_OK" == 1 ]]; then
+  mk_timer netdiag-speedtest "/usr/local/bin/netdiag-speedtest" "$SPEEDTEST_CAL"
+fi
 
 # -----------------------------------------------------------------------------
 echo "==> Startar tjänster"
@@ -530,6 +618,13 @@ systemctl daemon-reload
 systemctl enable --now network_exporter prometheus grafana-server
 systemctl restart network_exporter prometheus grafana-server
 systemctl enable --now netdiag-ping.timer netdiag-mtr.timer netdiag-cleanup.timer
+if [[ -n "$SPEEDTEST_CAL" && "$BBK_OK" == 1 ]]; then
+  systemctl enable netdiag-speedtest.timer >/dev/null 2>&1; systemctl restart netdiag-speedtest.timer
+  speed_info="$SPEEDTEST_SCHEDULE ($SPEEDTEST_CAL)"
+else
+  systemctl disable --now netdiag-speedtest.timer >/dev/null 2>&1 || true
+  speed_info="avstängt"
+fi
 
 if [[ -f /etc/systemd/system/netdiag-web.service ]]; then
   systemctl enable netdiag-web >/dev/null 2>&1; systemctl restart netdiag-web
@@ -562,5 +657,7 @@ cat <<EOF
    netdiag-mtr manual 8.8.8.8
  Avbrottslogg:
    netdiag-events          (alla)   netdiag-events -f   (live)
+ Hastighetstest:   ${speed_info}
+   netdiag-speedtest       (kör ett test nu)
 =============================================================
 EOF
