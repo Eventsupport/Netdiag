@@ -207,8 +207,8 @@ set -uo pipefail
 . /etc/netdiag.conf
 log="$DATA/ping.csv"
 [[ -f "$log" ]] || echo "epoch,tid,mal,skickade,mottagna,forlust_pct,min_ms,avg_ms,max_ms" > "$log"
-epoch=$(date +%s); now=$(date -d "@$epoch" -Iseconds)
 for t in $TARGETS; do
+  epoch=$(date +%s); now=$(date -d "@$epoch" -Iseconds)   # tid när just detta mål pingas
   out=$(ping -4 -n -q -c 20 -i 0.2 -W 1 "$t" 2>&1)
   sent=$(sed -nE 's/^([0-9]+) packets transmitted, ([0-9]+) (packets )?received.*/\1/p' <<<"$out")
   recv=$(sed -nE 's/^([0-9]+) packets transmitted, ([0-9]+) (packets )?received.*/\2/p' <<<"$out")
@@ -277,25 +277,60 @@ f_s=$(date -d "@$from" '+%F %T'); t_s=$(date -d "@$to" '+%F %T')
 touch "$DATA/events.log"
 awk -v f="$f_s" -v t="$t_s" '{ s = substr($0,1,19) } s >= f && s <= t' "$DATA/events.log" > "$out/avbrott.log"
 
+# --- Data från Prometheus (samma som Grafana) --------------------------------
+PROM="http://localhost:9090/api/v1"
+span=$(( to - from )); step=60
+(( span / step > 10000 )) && step=$(( (span / 10000 / 60 + 1) * 60 ))
+prom_instant() {  # PromQL utvärderad vid periodens slut -> "namn värde"
+  curl -fsS --max-time 30 "$PROM/query" --data-urlencode "query=$1" --data-urlencode "time=$to" 2>/dev/null \
+    | jq -r '.data.result[] | "\(.metric.name) \(.value[1])"' 2>/dev/null || true
+}
+prom_range() {    # PromQL per steg -> "epoch namn värde" för värden > 0
+  curl -fsS --max-time 60 "$PROM/query_range" --data-urlencode "query=$1" \
+      --data-urlencode "start=$from" --data-urlencode "end=$to" --data-urlencode "step=$step" 2>/dev/null \
+    | jq -r '.data.result[] | .metric.name as $n | .values[] | select((.[1]|tonumber) > 0) | "\(.[0]) \($n) \(.[1])"' 2>/dev/null || true
+}
+SNT='ping_rtt_snt_count{name=~".*-icmp"}'; FAIL='ping_rtt_snt_fail_count{name=~".*-icmp"}'
+tot_snt=$(prom_instant "round(sum by (name) (increase(${SNT}[${span}s])))")
+tot_fail=$(prom_instant "round(sum by (name) (increase(${FAIL}[${span}s])))")
+loss_min=$(prom_range "round(sum by (name) (increase(${FAIL}[${step}s])))" | sort -n)
+
 {
   echo "NÄTVERKSMÄTNING – UNDERLAG FÖR FELANMÄLAN"
   echo "========================================="
   echo "Plats:        $SITE_NAME"
   echo "Publik IP:    $(curl -fsS --max-time 5 https://ifconfig.me 2>/dev/null || echo okänd)"
   echo "Period:       $(date -d "@$from" '+%F %H:%M') – $(date -d "@$to" '+%F %H:%M') ($(date +%Z))"
-  echo "Metod:        20 ICMP-paket per mål och minut. MTR med $MTR_COUNT paket per hopp"
-  echo "              varje timme och automatiskt vid förlust >= ${LOSS_THRESHOLD} %."
+  echo "Metod:        Tre oberoende ICMP-mätningar per mål:"
+  echo "                A. 6 paket var 3:e sekund (kontinuerlig, samma data som Grafana)"
+  echo "                B. 1 paket per sekund (pingvakt, loggar varje avbrott)"
+  echo "                C. 20 paket per minut (pingkontroll)"
+  echo "              MTR med $MTR_COUNT paket per hopp varje timme och vid förlust >= ${LOSS_THRESHOLD} %."
+  echo "              Mycket korta avbrott (< 1 s) syns bara i de mätningar som hade"
+  echo "              ett paket ute i just det ögonblicket."
   echo
-  echo "SAMMANFATTNING PER MÅL"
-  printf "%-18s %8s %10s %10s %10s %14s\n" "Mål" "Mätn." "Snittförl%" "Maxförl%" "Snitt ms" "Min. m. förl."
-  awk -F, -v th="$LOSS_THRESHOLD" 'NR>1 {
-      n[$3]++; s[$3]+=$6; if ($6>m[$3]) m[$3]=$6; if ($6>=th) b[$3]++
-      if ($8!="") { ls[$3]+=$8; ln[$3]++ }
-    } END {
-      for (k in n) printf "%-18s %8d %10.2f %10d %10.1f %14d\n", k, n[k], s[k]/n[k], m[k], (ln[k]?ls[k]/ln[k]:0), b[k]
-    }' "$out/ping.csv"
+  echo "A. PAKET TILL SLUTMÅL (6 paket var 3:e s)"
+  if [[ -n "$tot_snt" ]]; then
+    printf "  %-18s %10s %10s %8s %9s\n" "Mål" "Skickade" "Mottagna" "Tappade" "Förlust"
+    awk 'NR==FNR { f[$1]=$2; next } {
+           n=$1; sub(/-icmp$/, "", n); s=$2+0; t=(f[$1]==""?0:f[$1]+0)
+           printf "  %-18s %10d %10d %8d %8.3f%%\n", n, s, s-t, t, (s>0?100*t/s:0) }' \
+        <(echo "$tot_fail") <(echo "$tot_snt") | sort
+    echo
+    echo "  Tidsintervall med tappade paket:"
+    if [[ -n "$loss_min" ]]; then
+      while read -r ts n v; do
+        printf "    %s–%s  %-18s %4d paket\n" "$(date -d "@$(( ${ts%.*} - step ))" '+%F %H:%M')" \
+          "$(date -d "@${ts%.*}" '+%H:%M')" "${n%-icmp}" "$v"
+      done <<<"$loss_min" | head -n 500
+    else
+      echo "    Inga tappade paket under perioden."
+    fi
+  else
+    echo "  (Ingen data från Prometheus för perioden.)"
+  fi
   echo
-  echo "AVBROTT (pingvakt, 1 paket/s per mål)"
+  echo "B. AVBROTT (pingvakt, 1 paket/s per mål)"
   if grep -q 'SVARAR IGEN' "$out/avbrott.log"; then
     grep 'SVARAR IGEN' "$out/avbrott.log" | sed 's/^/  /' | head -n 500
   else
@@ -304,8 +339,24 @@ awk -v f="$f_s" -v t="$t_s" '{ s = substr($0,1,19) } s >= f && s <= t' "$DATA/ev
   grep -q 'INGET SVAR' "$out/avbrott.log" && \
     echo "  (Fullständig logg med start och slut: avbrott.log)"
   echo
-  echo "MINUTER MED FÖRLUST >= ${LOSS_THRESHOLD} %"
-  awk -F, -v th="$LOSS_THRESHOLD" 'NR>1 && $6>=th { printf "  %s  %-16s %3d %% förlust\n", $2, $3, $6 }' "$out/ping.csv" | head -n 500
+  echo "C. PINGKONTROLL – SAMMANFATTNING PER MÅL (20 paket per minut)"
+  printf "  %-18s %8s %10s %10s %10s %14s\n" "Mål" "Mätn." "Snittförl%" "Maxförl%" "Snitt ms" "Min. m. förl."
+  awk -F, -v th="$LOSS_THRESHOLD" 'NR>1 {
+      n[$3]++; s[$3]+=$6; if ($6>m[$3]) m[$3]=$6; if ($6>=th) b[$3]++
+      if ($8!="") { ls[$3]+=$8; ln[$3]++ }
+    } END {
+      for (k in n) printf "  %-18s %8d %10.2f %10d %10.1f %14d\n", k, n[k], s[k]/n[k], m[k], (ln[k]?ls[k]/ln[k]:0), b[k]
+    }' "$out/ping.csv"
+  echo
+  echo "C. PINGKONTROLLER MED FÖRLUST (tid = när målet pingades)"
+  if awk -F, 'NR>1 && $6>0 { found=1 } END { exit !found }' "$out/ping.csv"; then
+    awk -F, -v th="$LOSS_THRESHOLD" 'NR>1 && $6>0 {
+        tid=$2; sub(/T/, " ", tid); sub(/[+-][0-9][0-9]:[0-9][0-9]$/, "", tid)
+        printf "  %s  %-18s %2d av %2d tappade (%3d %%)%s\n", tid, $3, $4-$5, $4, $6, ($6>=th ? "  -> MTR körd" : "") }' \
+      "$out/ping.csv" | head -n 500
+  else
+    echo "  Ingen förlust under perioden."
+  fi
   echo
   echo "MTR-RAPPORTER I PAKETET: $(ls "$out/mtr" | wc -l) st (katalogen mtr/)"
   echo
@@ -341,8 +392,8 @@ ping -4 -n -D -O -i 1 -W 1 "$t" 2>&1 | gawk -v t="$t" -v logf="$log" '
     }
     if ($0 ~ /bytes from/) {
       if (down) {
-        out(sprintf("%s  %-18s  SVARAR IGEN  avbrott %s – %s, %d paket utan svar (%d s)",
-                    ts(e), t, ts(start), ts(e), n, int(e - start + 0.5)))
+        out(sprintf("%s  %-18s  SVARAR IGEN  avbrott %s – %s, %d paket utan svar (ca %d s)",
+                    ts(e), t, ts(start), ts(e), n, n))
         down = 0
       }
       next
