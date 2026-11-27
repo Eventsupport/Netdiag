@@ -387,7 +387,9 @@ loss_min=$(prom_range "round(sum by (name) (increase(${FAIL}[${step}s])))" | sor
       while read -r ts n v; do
         printf "    %s–%s  %-18s %4d paket\n" "$(date -d "@$(( ${ts%.*} - step ))" '+%F %H:%M')" \
           "$(date -d "@${ts%.*}" '+%H:%M')" "${n%-icmp}" "$v"
-      done <<<"$loss_min" | head -n 500
+      done < <(head -n 500 <<<"$loss_min")
+      n_loss=$(wc -l <<<"$loss_min")
+      if (( n_loss > 500 )); then echo "    … visar 500 av $n_loss intervall. Hela förloppet syns i Grafana."; fi
     else
       echo "    Inga tappade paket under perioden."
     fi
@@ -397,7 +399,9 @@ loss_min=$(prom_range "round(sum by (name) (increase(${FAIL}[${step}s])))" | sor
   echo
   echo "B. AVBROTT (pingvakt, 1 paket/s per mål)"
   if grep -q 'SVARAR IGEN' "$out/avbrott.log"; then
-    grep 'SVARAR IGEN' "$out/avbrott.log" | sed 's/^/  /' | head -n 500
+    grep -m 500 'SVARAR IGEN' "$out/avbrott.log" | sed 's/^/  /'
+    n_ev=$(grep -c 'SVARAR IGEN' "$out/avbrott.log")
+    if (( n_ev > 500 )); then echo "  … visar 500 av $n_ev avbrott. Alla finns i avbrott.log."; fi
   else
     echo "  Inga avbrott under perioden."
   fi
@@ -415,10 +419,12 @@ loss_min=$(prom_range "round(sum by (name) (increase(${FAIL}[${step}s])))" | sor
   echo
   echo "C. PINGKONTROLLER MED FÖRLUST (tid = när målet pingades)"
   if awk -F, 'NR>1 && $6>0 { found=1 } END { exit !found }' "$out/ping.csv"; then
-    awk -F, -v th="$LOSS_THRESHOLD" 'NR>1 && $6>0 {
+    awk -F, -v th="$LOSS_THRESHOLD" 'NR>1 && $6>0 && ++c <= 500 {
         tid=$2; sub(/T/, " ", tid); sub(/[+-][0-9][0-9]:[0-9][0-9]$/, "", tid)
         printf "  %s  %-18s %2d av %2d tappade (%3d %%)%s\n", tid, $3, $4-$5, $4, $6, ($6>=th ? "  -> MTR körd" : "") }' \
-      "$out/ping.csv" | head -n 500
+      "$out/ping.csv"
+    n_pl=$(awk -F, 'NR>1 && $6>0' "$out/ping.csv" | wc -l)
+    if (( n_pl > 500 )); then echo "  … visar 500 av $n_pl pingkontroller med förlust. Alla finns i ping.csv."; fi
   else
     echo "  Ingen förlust under perioden."
   fi
@@ -429,10 +435,10 @@ loss_min=$(prom_range "round(sum by (name) (increase(${FAIL}[${step}s])))" | sor
   awk -F, -v f="$from" -v t="$to" '$1 ~ /^[0-9]+$/ && $1>=f && $1<=t' "$DATA/speedtest.csv" >> "$out/hastighet.csv"
   if awk 'NR>1 { found=1 } END { exit !found }' "$out/hastighet.csv"; then
     printf "  %-19s %8s %10s %10s  %-12s %s\n" "Tid" "Latens" "Ned Mbit/s" "Upp Mbit/s" "Support-ID" "Status"
-    awk -F, 'NR>1 {
+    awk -F, 'NR>1 && ++c <= 500 {
         tid=$2; sub(/T/, " ", tid); sub(/[+-][0-9][0-9]:[0-9][0-9]$/, "", tid)
         printf "  %-19s %8s %10s %10s  %-12s %s%s\n", tid, ($3==""?"-":$3" ms"), ($4==""?"-":$4), ($5==""?"-":$5), $6, $8, ($7==""?"":" ("$7")") }' \
-      "$out/hastighet.csv" | head -n 500
+      "$out/hastighet.csv"
     awk -F, 'NR>1 && $8=="ok" { n++; d+=$4; u+=$5; if (mn=="" || $4<mn) mn=$4 }
              END { if (n) printf "  Snitt %d test: ned %.1f Mbit/s, upp %.1f Mbit/s. Lägsta ned: %.1f Mbit/s\n", n, d/n, u/n, mn }' \
       "$out/hastighet.csv"
